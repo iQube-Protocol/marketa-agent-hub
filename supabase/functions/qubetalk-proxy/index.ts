@@ -16,7 +16,12 @@ type ProxyRequest = {
 };
 
 const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? 'https://dev-beta.aigentz.me';
-const API_PREFIX = '/api/marketa/qubetalk';
+const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
+
+const MAX_UPSTREAM_BODY_CHARS = 1200;
+
+const bodyPreview = (text: string) =>
+  text.length > MAX_UPSTREAM_BODY_CHARS ? `${text.slice(0, MAX_UPSTREAM_BODY_CHARS)}…` : text;
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
