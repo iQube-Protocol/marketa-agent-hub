@@ -141,6 +141,28 @@
     @apply -translate-y-0.5;
   }
 
+  /* Glass morphism utilities for QubeTalk */
+  .glass-container {
+    background: hsla(var(--card) / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsla(var(--border) / 0.5);
+  }
+
+  .glass-panel {
+    background: hsla(var(--background) / 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid hsla(var(--border) / 0.3);
+    border-radius: var(--radius);
+  }
+
+  .glass-sidebar {
+    background: hsla(var(--card) / 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;

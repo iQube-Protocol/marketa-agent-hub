@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -22,6 +23,7 @@ const navItems = [
   { path: '/publish', label: 'Publish', icon: Send },
   { path: '/segments', label: 'Segments', icon: UsersRound },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
+  { path: '/qubetalk', label: 'QubeTalk', icon: MessageSquare },
 ];
 
 export function Sidebar() {

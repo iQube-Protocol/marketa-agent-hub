@@ -10,6 +10,7 @@ import CampaignDetail from "./pages/CampaignDetail";
 import Publish from "./pages/Publish";
 import Segments from "./pages/Segments";
 import Reports from "./pages/Reports";
+import QubeTalk from "./pages/QubeTalk";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/publish" element={<Publish />} />
           <Route path="/segments" element={<Segments />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/qubetalk" element={<QubeTalk />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
