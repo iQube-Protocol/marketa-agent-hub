@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Partners from "./pages/Partners";
 import Campaigns from "./pages/Campaigns";
+import CampaignDetail from "./pages/CampaignDetail";
 import Publish from "./pages/Publish";
 import Segments from "./pages/Segments";
 import Reports from "./pages/Reports";
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/partners" element={<Partners />} />
           <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/campaigns/:id" element={<CampaignDetail />} />
           <Route path="/publish" element={<Publish />} />
           <Route path="/segments" element={<Segments />} />
           <Route path="/reports" element={<Reports />} />
