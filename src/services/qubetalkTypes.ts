@@ -4,12 +4,110 @@ export type ContentType = 'json' | 'iqube' | 'code_snippet' | 'hybrid';
 export type TransferStatus = 'pending' | 'sent' | 'delivered' | 'failed';
 export type IqubeType = 'content' | 'code' | 'data' | 'hybrid';
 export type ExecutionEnvironment = 'browser' | 'node' | 'blockchain';
+export type AgentInfra = 'agentiq' | 'lovable';
+export type AgentType = 'system' | 'platform' | 'thin-client' | 'development';
+export type ChannelType = 'essential' | 'optional';
 
 export interface AgentInfo {
   id: string;
-  type: string;
+  type: AgentType;
   name: string;
+  infra: AgentInfra;
 }
+
+/** Agent definitions for the ecosystem */
+export const AGENTS = {
+  AIGENT_Z: {
+    id: 'aigent-z',
+    name: 'Aigent Z',
+    type: 'system' as AgentType,
+    infra: 'agentiq' as AgentInfra,
+  },
+  MARKETA_AGQ: {
+    id: 'marketa-agq',
+    name: 'Marketa (AGQ)',
+    type: 'platform' as AgentType,
+    infra: 'agentiq' as AgentInfra,
+  },
+  MARKETA_LVB: {
+    id: 'marketa-lvb',
+    name: 'Marketa (LVB)',
+    type: 'thin-client' as AgentType,
+    infra: 'lovable' as AgentInfra,
+  },
+  LOVABLE: {
+    id: 'lovable-dev',
+    name: 'Lovable',
+    type: 'development' as AgentType,
+    infra: 'lovable' as AgentInfra,
+  },
+} as const;
+
+/** Channel definition with proper nomenclature */
+export interface ChannelDefinition {
+  channel_id: string;
+  display_name: string;
+  description: string;
+  from_agent: AgentInfo;
+  to_agent: AgentInfo;
+  participants: string[];
+  content_types: string[];
+  channel_type: ChannelType;
+  hidden_by_default?: boolean;
+}
+
+/** Channel configuration for Marketa (LVB) thin client */
+export const CHANNEL_CONFIG: {
+  essential: ChannelDefinition[];
+  optional: ChannelDefinition[];
+} = {
+  essential: [
+    {
+      channel_id: 'marketa-lvb-marketa-agq',
+      display_name: 'Marketa (LVB) - Marketa (AGQ)',
+      description: 'Configuration sync and data exchange with thick platform',
+      from_agent: AGENTS.MARKETA_LVB,
+      to_agent: AGENTS.MARKETA_AGQ,
+      participants: ['marketa-lvb', 'marketa-agq'],
+      content_types: ['config_json', 'iqube', 'data_exchange', 'text'],
+      channel_type: 'essential',
+    },
+    {
+      channel_id: 'marketa-lvb-aigent-z',
+      display_name: 'Marketa (LVB) - Aigent Z',
+      description: 'System communication and orchestration',
+      from_agent: AGENTS.MARKETA_LVB,
+      to_agent: AGENTS.AIGENT_Z,
+      participants: ['marketa-lvb', 'aigent-z'],
+      content_types: ['system_alert', 'text', 'iqube'],
+      channel_type: 'essential',
+    },
+  ],
+  optional: [
+    {
+      channel_id: 'lovable-dev-marketa-agq',
+      display_name: 'Lovable - Marketa (AGQ)',
+      description: 'Development coordination and infrastructure',
+      from_agent: AGENTS.LOVABLE,
+      to_agent: AGENTS.MARKETA_AGQ,
+      participants: ['lovable-dev', 'marketa-agq'],
+      content_types: ['code_snippet', 'config_json', 'text'],
+      channel_type: 'optional',
+      hidden_by_default: true,
+    },
+    {
+      channel_id: 'lovable-dev-aigent-z',
+      display_name: 'Lovable - Aigent Z',
+      description: 'System diagnostics and infrastructure',
+      from_agent: AGENTS.LOVABLE,
+      to_agent: AGENTS.AIGENT_Z,
+      participants: ['lovable-dev', 'aigent-z'],
+      content_types: ['system_alert', 'code_snippet', 'text'],
+      channel_type: 'optional',
+      hidden_by_default: true,
+    },
+  ],
+};
 
 export interface IqubeMetadata {
   title: string;
