@@ -7,7 +7,6 @@ import {
   Send, 
   Upload, 
   Settings, 
-  Plus,
   Hash,
   Box,
   Code,
@@ -15,6 +14,10 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  ChevronDown,
+  ChevronRight,
+  Zap,
+  Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +40,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { 
   useChannels, 
   useMessages, 
@@ -47,6 +55,7 @@ import {
 } from '@/hooks/useQubeTalk';
 import { qubetalkApi } from '@/services/qubetalkApi';
 import type { QubeTalkMessage, QubeTalkChannel, ContentTransfer } from '@/services/qubetalkTypes';
+import { CHANNEL_CONFIG } from '@/services/qubetalkTypes';
 
 // Message bubble component
 function MessageBubble({ message }: { message: QubeTalkMessage }) {
@@ -86,15 +95,17 @@ function MessageBubble({ message }: { message: QubeTalkMessage }) {
   );
 }
 
-// Channel item component
+// Channel item component with type indicator
 function ChannelItem({ 
   channel, 
   isActive, 
-  onClick 
+  onClick,
+  channelType,
 }: { 
   channel: QubeTalkChannel; 
   isActive: boolean; 
   onClick: () => void;
+  channelType: 'essential' | 'optional';
 }) {
   return (
     <button
@@ -103,10 +114,15 @@ function ChannelItem({
         'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left',
         isActive 
           ? 'bg-primary/10 text-primary border border-primary/20' 
-          : 'hover:bg-muted/50'
+          : 'hover:bg-muted/50',
+        channelType === 'optional' && 'opacity-80'
       )}
     >
-      <Hash className="w-4 h-4 shrink-0" />
+      {channelType === 'essential' ? (
+        <Zap className="w-4 h-4 shrink-0 text-primary" />
+      ) : (
+        <Wrench className="w-4 h-4 shrink-0 text-muted-foreground" />
+      )}
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{channel.name}</p>
         {channel.description && (
@@ -159,7 +175,7 @@ export function QubeTalkClient() {
   const config = useQubeTalkConfig();
   const { data: channels, isLoading: channelsLoading } = useChannels();
   const { data: transfers } = useTransfers();
-  const [activeChannel, setActiveChannel] = useState<string>('lovable-aigentz');
+  const [activeChannel, setActiveChannel] = useState<string>('marketa-lvb-aigent-z');
   const { data: messages, isLoading: messagesLoading } = useMessages(activeChannel);
   const sendMessage = useSendMessage();
   const sendTransfer = useSendTransfer();
@@ -169,7 +185,14 @@ export function QubeTalkClient() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [uploadContent, setUploadContent] = useState('');
   const [uploadName, setUploadName] = useState('');
+  const [showOptionalChannels, setShowOptionalChannels] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Separate essential and optional channels
+  const essentialChannelIds = CHANNEL_CONFIG.essential.map(c => c.channel_id);
+  const optionalChannelIds = CHANNEL_CONFIG.optional.map(c => c.channel_id);
+  const essentialChannels = channels?.filter(c => essentialChannelIds.includes(c.id)) || [];
+  const optionalChannels = channels?.filter(c => optionalChannelIds.includes(c.id)) || [];
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -292,15 +315,53 @@ export function QubeTalkClient() {
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="space-y-1">
-                  {channels?.map((channel) => (
-                    <ChannelItem
-                      key={channel.id}
-                      channel={channel}
-                      isActive={activeChannel === channel.id}
-                      onClick={() => setActiveChannel(channel.id)}
-                    />
-                  ))}
+                <div className="space-y-3">
+                  {/* Essential Channels */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground px-3 py-1 flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      Essential Channels
+                    </p>
+                    <div className="space-y-1">
+                      {essentialChannels.map((channel) => (
+                        <ChannelItem
+                          key={channel.id}
+                          channel={channel}
+                          isActive={activeChannel === channel.id}
+                          onClick={() => setActiveChannel(channel.id)}
+                          channelType="essential"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Optional/Development Channels */}
+                  <Collapsible open={showOptionalChannels} onOpenChange={setShowOptionalChannels}>
+                    <CollapsibleTrigger className="w-full">
+                      <p className="text-xs font-medium text-muted-foreground px-3 py-1 flex items-center gap-1 hover:text-foreground transition-colors">
+                        {showOptionalChannels ? (
+                          <ChevronDown className="w-3 h-3" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3" />
+                        )}
+                        <Wrench className="w-3 h-3" />
+                        Development Channels
+                      </p>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="space-y-1 mt-1">
+                        {optionalChannels.map((channel) => (
+                          <ChannelItem
+                            key={channel.id}
+                            channel={channel}
+                            isActive={activeChannel === channel.id}
+                            onClick={() => setActiveChannel(channel.id)}
+                            channelType="optional"
+                          />
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               )}
             </ScrollArea>

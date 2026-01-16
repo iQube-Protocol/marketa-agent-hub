@@ -8,7 +8,9 @@ import type {
   Iqube,
   ContentType,
   AgentInfo,
+  ChannelDefinition,
 } from './qubetalkTypes';
+import { AGENTS, CHANNEL_CONFIG } from './qubetalkTypes';
 
 // Environment configuration
 export const getQubeTalkConfig = (): QubeTalkConfig => {
@@ -23,74 +25,50 @@ export const getQubeTalkConfig = (): QubeTalkConfig => {
 // Simulated delay for realistic UX (mock implementation)
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Default agent info for this client
-const CLIENT_AGENT: AgentInfo = {
-  id: 'lovable-thin-client',
-  type: 'thin-client',
-  name: 'Marketa Console',
+// Default agent info for this client (Marketa LVB - Thin Client)
+const CLIENT_AGENT: AgentInfo = AGENTS.MARKETA_LVB;
+
+// Convert channel definitions to QubeTalkChannel format
+const channelDefToChannel = (def: ChannelDefinition): QubeTalkChannel => ({
+  id: def.channel_id,
+  name: def.display_name,
+  description: def.description,
+  participants: def.participants,
+  created_at: '2024-01-15T10:00:00Z',
+  last_activity: new Date().toISOString(),
+});
+
+// Generate channels from configuration
+const generateChannels = (): QubeTalkChannel[] => {
+  const essential = CHANNEL_CONFIG.essential.map(channelDefToChannel);
+  const optional = CHANNEL_CONFIG.optional.map(channelDefToChannel);
+  return [...essential, ...optional];
 };
 
-// Mock data
-const mockChannels: QubeTalkChannel[] = [
-  {
-    id: 'lovable-aigentz',
-    name: 'Aigent Z',
-    description: 'Direct communication with Aigent Z',
-    participants: ['lovable-thin-client', 'aigent-z'],
-    created_at: '2024-01-15T10:00:00Z',
-    last_activity: new Date().toISOString(),
-  },
-  {
-    id: 'lovable-marketa',
-    name: 'Marketa',
-    description: 'Configuration and data sharing with Marketa',
-    participants: ['lovable-thin-client', 'marketa-agent'],
-    created_at: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: 'iqube-exchange',
-    name: 'iQube Exchange',
-    description: 'iQube distribution and sharing',
-    participants: ['lovable-thin-client', 'aigent-z', 'marketa-agent'],
-    created_at: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: 'code-collaboration',
-    name: 'Code Collaboration',
-    description: 'Code snippet sharing and review',
-    participants: ['lovable-thin-client', 'aigent-z'],
-    created_at: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: 'system-notifications',
-    name: 'System',
-    description: 'System alerts and updates',
-    participants: ['lovable-thin-client'],
-    created_at: '2024-01-15T10:00:00Z',
-  },
-];
+// Mock data using new channel structure
+const mockChannels: QubeTalkChannel[] = generateChannels();
 
 const mockMessages: QubeTalkMessage[] = [
   {
     message_id: 'msg_1',
-    from_agent: { id: 'aigent-z', type: 'coordinator', name: 'Aigent Z' },
+    from_agent: AGENTS.AIGENT_Z,
     content: {
       type: 'text',
       text: 'Welcome to QubeTalk! I\'m Aigent Z, your AgentiQ ecosystem coordinator. How can I assist you today?',
     },
     message_type: 'incoming',
-    channel_id: 'lovable-aigentz',
+    channel_id: 'marketa-lvb-aigent-z',
     created_at: new Date(Date.now() - 3600000).toISOString(),
   },
   {
     message_id: 'msg_2',
-    from_agent: { id: 'marketa-agent', type: 'marketing', name: 'Marketa Agent' },
+    from_agent: AGENTS.MARKETA_AGQ,
     content: {
       type: 'text',
-      text: 'Configuration sync available. Send your client setup as an iQube for comparison.',
+      text: 'Configuration sync available. Send your client setup as an iQube for comparison with the thick platform.',
     },
     message_type: 'incoming',
-    channel_id: 'lovable-marketa',
+    channel_id: 'marketa-lvb-marketa-agq',
     created_at: new Date(Date.now() - 1800000).toISOString(),
   },
 ];
@@ -140,7 +118,7 @@ export const qubetalkApi = {
     setTimeout(() => {
       const response: QubeTalkMessage = {
         message_id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        from_agent: { id: 'aigent-z', type: 'coordinator', name: 'Aigent Z' },
+        from_agent: AGENTS.AIGENT_Z,
         content: {
           type: 'text',
           text: contentType === 'iqube_transfer'
