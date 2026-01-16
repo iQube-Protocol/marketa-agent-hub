@@ -45,7 +45,7 @@ export default function Segments() {
   const [mythosBias, setMythosBias] = useState(false);
   const [logosBias, setLogosBias] = useState(false);
   const [builderFlag, setBuilderFlag] = useState(false);
-  const [partnerAffinity, setPartnerAffinity] = useState<string>('');
+  const [partnerAffinity, setPartnerAffinity] = useState<string>('any');
   const [emailOptIn, setEmailOptIn] = useState(true);
   const [smsOptIn, setSmsOptIn] = useState(false);
   const [whatsappOptIn, setWhatsappOptIn] = useState(false);
@@ -73,7 +73,7 @@ export default function Segments() {
       mythosBias,
       logosBias,
       builderFlag,
-      partnerAffinity: partnerAffinity || undefined,
+      partnerAffinity: partnerAffinity === 'any' ? undefined : partnerAffinity,
       emailOptIn,
       smsOptIn,
       whatsappOptIn,
@@ -205,7 +205,7 @@ export default function Segments() {
                     <SelectValue placeholder="Any partner" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any partner</SelectItem>
+                    <SelectItem value="any">Any partner</SelectItem>
                     {partners?.map((partner) => (
                       <SelectItem key={partner.id} value={partner.id}>
                         {partner.name}
