@@ -1,4 +1,4 @@
-/** QubeTalk API Client for agent-to-agent communication */
+/** QubeTalk API Client for agent-to-agent communication - LIVE DATA */
 
 import type {
   QubeTalkMessage,
@@ -8,74 +8,47 @@ import type {
   Iqube,
   ContentType,
   AgentInfo,
-  ChannelDefinition,
 } from './qubetalkTypes';
-import { AGENTS, CHANNEL_CONFIG } from './qubetalkTypes';
+import { AGENTS } from './qubetalkTypes';
 
 // Environment configuration
 export const getQubeTalkConfig = (): QubeTalkConfig => {
   const isProduction = window.location.hostname === 'dev-beta.aigentz.me';
   return {
-    baseUrl: isProduction ? 'https://dev-beta.aigentz.me' : 'http://localhost:3003',
+    baseUrl: isProduction ? 'https://dev-beta.aigentz.me' : 'https://dev-beta.aigentz.me', // Always use production API
     apiEndpoint: '/api/marketa/qubetalk',
     environment: isProduction ? 'production' : 'development',
   };
 };
 
-// Simulated delay for realistic UX (mock implementation)
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 // Default agent info for this client (Marketa LVB - Thin Client)
 const CLIENT_AGENT: AgentInfo = AGENTS.MARKETA_LVB;
 
-// Convert channel definitions to QubeTalkChannel format
-const channelDefToChannel = (def: ChannelDefinition): QubeTalkChannel => ({
-  id: def.channel_id,
-  name: def.display_name,
-  description: def.description,
-  participants: def.participants,
-  created_at: '2024-01-15T10:00:00Z',
-  last_activity: new Date().toISOString(),
-});
+// Helper for API calls
+const apiCall = async <T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> => {
+  const config = getQubeTalkConfig();
+  const url = `${config.baseUrl}${config.apiEndpoint}${endpoint}`;
+  
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
-// Generate channels from configuration
-const generateChannels = (): QubeTalkChannel[] => {
-  const essential = CHANNEL_CONFIG.essential.map(channelDefToChannel);
-  const optional = CHANNEL_CONFIG.optional.map(channelDefToChannel);
-  return [...essential, ...optional];
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`QubeTalk API error: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
 };
 
-// Mock data using new channel structure
-const mockChannels: QubeTalkChannel[] = generateChannels();
-
-const mockMessages: QubeTalkMessage[] = [
-  {
-    message_id: 'msg_1',
-    from_agent: AGENTS.AIGENT_Z,
-    content: {
-      type: 'text',
-      text: 'Welcome to QubeTalk! I\'m Aigent Z, your AgentiQ ecosystem coordinator. How can I assist you today?',
-    },
-    message_type: 'incoming',
-    channel_id: 'marketa-lvb-aigent-z',
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    message_id: 'msg_2',
-    from_agent: AGENTS.MARKETA_AGQ,
-    content: {
-      type: 'text',
-      text: 'Configuration sync available. Send your client setup as an iQube for comparison with the thick platform.',
-    },
-    message_type: 'incoming',
-    channel_id: 'marketa-lvb-marketa-agq',
-    created_at: new Date(Date.now() - 1800000).toISOString(),
-  },
-];
-
-const mockTransfers: ContentTransfer[] = [];
-
-/** QubeTalk API Client */
+/** QubeTalk API Client - Live Implementation */
 export const qubetalkApi = {
   // Configuration
   getConfig: getQubeTalkConfig,
@@ -83,11 +56,8 @@ export const qubetalkApi = {
 
   // Messages
   async getMessages(channelId?: string): Promise<QubeTalkMessage[]> {
-    await delay(200);
-    if (channelId) {
-      return mockMessages.filter(m => m.channel_id === channelId);
-    }
-    return mockMessages;
+    const endpoint = channelId ? `/messages?channel_id=${channelId}` : '/messages';
+    return apiCall<QubeTalkMessage[]>(endpoint);
   },
 
   async sendMessage(
@@ -96,9 +66,7 @@ export const qubetalkApi = {
     contentType: 'text' | 'content_transfer' | 'iqube_transfer' | 'code_snippet' = 'text',
     payload?: unknown
   ): Promise<QubeTalkMessage> {
-    await delay(300);
-    const message: QubeTalkMessage = {
-      message_id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    const message = {
       from_agent: CLIENT_AGENT,
       content: {
         type: contentType,
@@ -108,39 +76,18 @@ export const qubetalkApi = {
           data: payload,
         } : undefined,
       },
-      message_type: 'outgoing',
       channel_id: channelId,
-      created_at: new Date().toISOString(),
     };
-    mockMessages.push(message);
 
-    // Simulate response after a short delay
-    setTimeout(() => {
-      const response: QubeTalkMessage = {
-        message_id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        from_agent: AGENTS.AIGENT_Z,
-        content: {
-          type: 'text',
-          text: contentType === 'iqube_transfer'
-            ? 'iQube received and processed successfully. I\'ll analyze the content and respond shortly.'
-            : contentType === 'code_snippet'
-            ? 'Code snippet received. Reviewing for integration possibilities.'
-            : 'Message received. Processing your request...',
-        },
-        message_type: 'incoming',
-        channel_id: channelId,
-        created_at: new Date().toISOString(),
-      };
-      mockMessages.push(response);
-    }, 1500);
-
-    return message;
+    return apiCall<QubeTalkMessage>('/messages', {
+      method: 'POST',
+      body: JSON.stringify(message),
+    });
   },
 
   // Content Transfers
   async getTransfers(): Promise<ContentTransfer[]> {
-    await delay(200);
-    return mockTransfers;
+    return apiCall<ContentTransfer[]>('/transfers');
   },
 
   async sendTransfer(
@@ -150,46 +97,42 @@ export const qubetalkApi = {
     name: string,
     iqubeFormat?: Iqube
   ): Promise<ContentTransfer> {
-    await delay(500);
-    const transfer: ContentTransfer = {
-      transfer_id: `transfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    const transfer = {
       from_agent: CLIENT_AGENT.id,
       to_agent: toAgent,
       content_type: iqubeFormat ? 'iqube' : 'content',
       content: {
-        id: `content_${Date.now()}`,
         type: contentType,
         name,
         data: content,
         iqube_format: iqubeFormat,
-        created_at: new Date().toISOString(),
       },
-      status: 'sent',
       iqube_ref: iqubeFormat?.iqube_id,
       transfer_method: iqubeFormat ? 'iqube' : 'raw_json',
-      created_at: new Date().toISOString(),
     };
-    mockTransfers.push(transfer);
-    return transfer;
+
+    return apiCall<ContentTransfer>('/transfers', {
+      method: 'POST',
+      body: JSON.stringify(transfer),
+    });
   },
 
   // Channels
   async getChannels(): Promise<QubeTalkChannel[]> {
-    await delay(200);
-    return mockChannels;
+    return apiCall<QubeTalkChannel[]>('/channels');
   },
 
   async createChannel(name: string, description?: string): Promise<QubeTalkChannel> {
-    await delay(300);
-    const channel: QubeTalkChannel = {
-      id: `channel_${Date.now()}`,
+    const channel = {
       name,
       description,
       participants: [CLIENT_AGENT.id],
-      created_at: new Date().toISOString(),
     };
-    mockChannels.push(channel);
-    return channel;
+
+    return apiCall<QubeTalkChannel>('/channels', {
+      method: 'POST',
+      body: JSON.stringify(channel),
+    });
   },
 
   // iQube helpers
