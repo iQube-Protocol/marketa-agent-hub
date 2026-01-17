@@ -17,13 +17,19 @@ type ProxyRequest = {
 
 const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? 'https://dev-beta.aigentz.me';
 const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
-const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'aigentz';
+const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'demo-tenant';
 const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? 'marketa-lvb';
 
-const MAX_UPSTREAM_BODY_CHARS = 1200;
-
-const bodyPreview = (text: string) =>
-  text.length > MAX_UPSTREAM_BODY_CHARS ? `${text.slice(0, MAX_UPSTREAM_BODY_CHARS)}…` : text;
+// Map endpoints to actual API paths
+// /messages goes to root /api/marketa/qubetalk (no suffix)
+// /channels goes to /api/marketa/qubetalk/channels
+// /transfers goes to /api/marketa/qubetalk/transfers
+const getApiPath = (endpoint: AllowedEndpoint): string => {
+  if (endpoint === '/messages') {
+    return ''; // Messages use root path
+  }
+  return endpoint; // /channels and /transfers keep their suffix
+};
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -43,11 +49,11 @@ Deno.serve(async (req) => {
     }
 
     const method = payload.method ?? 'GET';
+    const apiPath = getApiPath(endpoint);
 
-    const url = new URL(`${BASE_URL}${API_PREFIX}${endpoint}`);
-    // Always include tenant_id and persona_id
+    const url = new URL(`${BASE_URL}${API_PREFIX}${apiPath}`);
+    // Always include tenant_id
     url.searchParams.set('tenant_id', DEFAULT_TENANT_ID);
-    url.searchParams.set('persona_id', DEFAULT_PERSONA_ID);
     if (payload.query) {
       for (const [key, value] of Object.entries(payload.query)) {
         if (value === undefined || value === null) continue;
@@ -55,12 +61,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('QubeTalk proxy request', { method, url: url.toString() });
+    console.log('QubeTalk proxy request', { method, url: url.toString(), endpoint, apiPath });
 
     const upstreamRes = await fetch(url.toString(), {
       method,
       headers: {
         'Content-Type': 'application/json',
+        'x-persona-id': DEFAULT_PERSONA_ID,
       },
       body: method === 'GET' ? undefined : JSON.stringify(payload.body ?? {}),
     });
@@ -75,6 +82,8 @@ Deno.serve(async (req) => {
         data = { raw: text };
       }
     }
+
+    console.log('QubeTalk upstream response', { status: upstreamRes.status, bodyPreview: text.slice(0, 500) });
 
     return new Response(JSON.stringify(data), {
       status: upstreamRes.status,
