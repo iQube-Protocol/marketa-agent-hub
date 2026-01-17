@@ -1,0 +1,171 @@
+{
+  "name": "Marketa Console",
+  "description": "A thin-client marketing console for managing partners, campaigns, segments, and publishing",
+  "version": "1.0.0",
+  "techStack": {
+    "framework": "React 18",
+    "bundler": "Vite",
+    "styling": "Tailwind CSS",
+    "ui": "shadcn/ui",
+    "routing": "React Router DOM v6",
+    "state": "TanStack React Query",
+    "backend": "Supabase (Edge Functions)"
+  },
+  "routes": [
+    {
+      "path": "/",
+      "page": "src/pages/Index.tsx",
+      "name": "Dashboard",
+      "description": "Main dashboard with KPI stats, phase selector, quick actions, and activity feed"
+    },
+    {
+      "path": "/partners",
+      "page": "src/pages/Partners.tsx",
+      "name": "Partners",
+      "description": "List and manage marketing partners"
+    },
+    {
+      "path": "/partners/new",
+      "page": "src/pages/PartnerDetail.tsx",
+      "name": "Add Partner",
+      "description": "Create a new partner"
+    },
+    {
+      "path": "/partners/:id",
+      "page": "src/pages/PartnerDetail.tsx",
+      "name": "Partner Detail",
+      "description": "View and edit partner details"
+    },
+    {
+      "path": "/campaigns",
+      "page": "src/pages/Campaigns.tsx",
+      "name": "Campaigns",
+      "description": "List and manage marketing campaigns/packs"
+    },
+    {
+      "path": "/campaigns/:id",
+      "page": "src/pages/CampaignDetail.tsx",
+      "name": "Campaign Detail",
+      "description": "View and edit campaign details"
+    },
+    {
+      "path": "/publish",
+      "page": "src/pages/Publish.tsx",
+      "name": "Publish",
+      "description": "Publish approved packs to channels (email, push, in-app)"
+    },
+    {
+      "path": "/segments",
+      "page": "src/pages/Segments.tsx",
+      "name": "Segments",
+      "description": "Create and preview audience segments"
+    },
+    {
+      "path": "/reports",
+      "page": "src/pages/Reports.tsx",
+      "name": "Reports",
+      "description": "View campaign performance and channel analytics"
+    },
+    {
+      "path": "/qubetalk",
+      "page": "src/pages/QubeTalk.tsx",
+      "name": "QubeTalk",
+      "description": "Messaging client for QubeTalk channels"
+    }
+  ],
+  "layout": {
+    "component": "src/components/layout/MainLayout.tsx",
+    "sidebar": "src/components/layout/Sidebar.tsx",
+    "description": "Collapsible sidebar with navigation links and user info"
+  },
+  "components": {
+    "dashboard": [
+      {
+        "name": "KPIStats",
+        "path": "src/components/dashboard/KPIStats.tsx",
+        "description": "Displays key performance indicators"
+      },
+      {
+        "name": "PhaseSelector",
+        "path": "src/components/dashboard/PhaseSelector.tsx",
+        "description": "Toggle between campaign phases (awareness, consideration, conversion, loyalty)"
+      },
+      {
+        "name": "QuickActions",
+        "path": "src/components/dashboard/QuickActions.tsx",
+        "description": "Quick action buttons for common tasks"
+      },
+      {
+        "name": "ActivityFeed",
+        "path": "src/components/dashboard/ActivityFeed.tsx",
+        "description": "Recent activity timeline"
+      }
+    ],
+    "campaigns": [
+      {
+        "name": "PackWizard",
+        "path": "src/components/campaigns/PackWizard.tsx",
+        "description": "Multi-step wizard for generating campaign packs"
+      }
+    ],
+    "qubetalk": [
+      {
+        "name": "QubeTalkClient",
+        "path": "src/components/qubetalk/QubeTalkClient.tsx",
+        "description": "Chat client for QubeTalk messaging"
+      }
+    ]
+  },
+  "hooks": {
+    "api": [
+      {
+        "name": "useMarketaApi",
+        "path": "src/hooks/useMarketaApi.ts",
+        "description": "Hooks for Marketa API: KPIs, partners, packs, publishing, segments, reports"
+      },
+      {
+        "name": "useQubeTalk",
+        "path": "src/hooks/useQubeTalk.ts",
+        "description": "Hooks for QubeTalk: channels, messages, transfers, iQubes"
+      }
+    ]
+  },
+  "services": [
+    {
+      "name": "marketaApi",
+      "path": "src/services/marketaApi.ts",
+      "description": "API client for Marketa backend"
+    },
+    {
+      "name": "qubetalkApi",
+      "path": "src/services/qubetalkApi.ts",
+      "description": "API client for QubeTalk backend"
+    },
+    {
+      "name": "types",
+      "path": "src/services/types.ts",
+      "description": "TypeScript types for Marketa entities"
+    },
+    {
+      "name": "qubetalkTypes",
+      "path": "src/services/qubetalkTypes.ts",
+      "description": "TypeScript types for QubeTalk entities"
+    }
+  ],
+  "edgeFunctions": [
+    {
+      "name": "qubetalk-proxy",
+      "path": "supabase/functions/qubetalk-proxy/index.ts",
+      "description": "Proxy for QubeTalk API calls with tenant injection"
+    }
+  ],
+  "navigation": [
+    { "label": "Dashboard", "path": "/", "icon": "LayoutDashboard" },
+    { "label": "Partners", "path": "/partners", "icon": "Users" },
+    { "label": "Campaigns", "path": "/campaigns", "icon": "Megaphone" },
+    { "label": "Publish", "path": "/publish", "icon": "Send" },
+    { "label": "Segments", "path": "/segments", "icon": "Target" },
+    { "label": "Reports", "path": "/reports", "icon": "BarChart3" },
+    { "label": "QubeTalk", "path": "/qubetalk", "icon": "MessageSquare" }
+  ]
+}
