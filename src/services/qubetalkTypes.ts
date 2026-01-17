@@ -63,22 +63,23 @@ export const CHANNEL_CONFIG: {
 } = {
   essential: [
     {
-      channel_id: 'marketa-lvb-marketa-agq',
-      display_name: 'Marketa (LVB) - Marketa (AGQ)',
+      // Updated to match backend channel naming: <from>-<to>
+      channel_id: 'marketa-agq-marketa-lvb',
+      display_name: 'Marketa (AGQ) ↔ Marketa (LVB)',
       description: 'Configuration sync and data exchange with thick platform',
-      from_agent: AGENTS.MARKETA_LVB,
-      to_agent: AGENTS.MARKETA_AGQ,
-      participants: ['marketa-lvb', 'marketa-agq'],
+      from_agent: AGENTS.MARKETA_AGQ,
+      to_agent: AGENTS.MARKETA_LVB,
+      participants: ['marketa-agq', 'marketa-lvb'],
       content_types: ['config_json', 'iqube', 'data_exchange', 'text'],
       channel_type: 'essential',
     },
     {
-      channel_id: 'marketa-lvb-aigent-z',
-      display_name: 'Marketa (LVB) - Aigent Z',
+      channel_id: 'aigent-z-marketa-lvb',
+      display_name: 'Aigent Z ↔ Marketa (LVB)',
       description: 'System communication and orchestration',
-      from_agent: AGENTS.MARKETA_LVB,
-      to_agent: AGENTS.AIGENT_Z,
-      participants: ['marketa-lvb', 'aigent-z'],
+      from_agent: AGENTS.AIGENT_Z,
+      to_agent: AGENTS.MARKETA_LVB,
+      participants: ['aigent-z', 'marketa-lvb'],
       content_types: ['system_alert', 'text', 'iqube'],
       channel_type: 'essential',
     },
@@ -86,7 +87,7 @@ export const CHANNEL_CONFIG: {
   optional: [
     {
       channel_id: 'lovable-dev-marketa-agq',
-      display_name: 'Lovable - Marketa (AGQ)',
+      display_name: 'Lovable ↔ Marketa (AGQ)',
       description: 'Development coordination and infrastructure',
       from_agent: AGENTS.LOVABLE,
       to_agent: AGENTS.MARKETA_AGQ,
@@ -97,7 +98,7 @@ export const CHANNEL_CONFIG: {
     },
     {
       channel_id: 'lovable-dev-aigent-z',
-      display_name: 'Lovable - Aigent Z',
+      display_name: 'Lovable ↔ Aigent Z',
       description: 'System diagnostics and infrastructure',
       from_agent: AGENTS.LOVABLE,
       to_agent: AGENTS.AIGENT_Z,
@@ -193,6 +194,7 @@ export interface ContentTransfer {
 
 export interface QubeTalkChannel {
   id: string;
+  channel_id?: string; // Backend may return either id or channel_id
   name: string;
   description?: string;
   participants: string[];

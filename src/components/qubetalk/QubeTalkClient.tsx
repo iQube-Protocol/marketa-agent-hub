@@ -107,6 +107,10 @@ function ChannelItem({
   onClick: () => void;
   channelType: 'essential' | 'optional';
 }) {
+  // Handle both id and channel_id from API
+  const channelId = channel.id || channel.channel_id || 'unknown';
+  const channelName = channel.name || channelId;
+  
   return (
     <button
       onClick={onClick}
@@ -124,7 +128,7 @@ function ChannelItem({
         <Wrench className="w-4 h-4 shrink-0 text-muted-foreground" />
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium truncate">{channel.name}</p>
+        <p className="text-sm font-medium truncate">{channelName}</p>
         {channel.description && (
           <p className="text-xs text-muted-foreground truncate">{channel.description}</p>
         )}
@@ -188,12 +192,28 @@ export function QubeTalkClient() {
   const [showOptionalChannels, setShowOptionalChannels] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Separate essential and optional channels
+  // Separate essential, optional, and dynamic (uncategorized) channels
   const channelList = Array.isArray(channels) ? channels : [];
   const essentialChannelIds = CHANNEL_CONFIG.essential.map(c => c.channel_id);
   const optionalChannelIds = CHANNEL_CONFIG.optional.map(c => c.channel_id);
-  const essentialChannels = channelList.filter(c => essentialChannelIds.includes(c.id));
-  const optionalChannels = channelList.filter(c => optionalChannelIds.includes(c.id));
+  const allKnownIds = [...essentialChannelIds, ...optionalChannelIds];
+  
+  // Match by id OR channel_id (backend may use either)
+  const essentialChannels = channelList.filter(c => 
+    essentialChannelIds.includes(c.id) || essentialChannelIds.includes((c as any).channel_id)
+  );
+  const optionalChannels = channelList.filter(c => 
+    optionalChannelIds.includes(c.id) || optionalChannelIds.includes((c as any).channel_id)
+  );
+  // Show any channels from backend that don't match our predefined config
+  const dynamicChannels = channelList.filter(c => 
+    !allKnownIds.includes(c.id) && !allKnownIds.includes((c as any).channel_id)
+  );
+  
+  // If no essential channels match, show all channels in essential section
+  const displayEssentialChannels = essentialChannels.length > 0 
+    ? essentialChannels 
+    : channelList;
 
   // Defensive: API sometimes returns non-arrays on error
   const messageList = Array.isArray(messages) ? messages : [];
@@ -320,23 +340,31 @@ export function QubeTalkClient() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Essential Channels */}
+                  {/* Essential Channels (or all channels if none match) */}
                   <div>
                     <p className="text-xs font-medium text-muted-foreground px-3 py-1 flex items-center gap-1">
                       <Zap className="w-3 h-3" />
-                      Essential Channels
+                      {displayEssentialChannels.length === channelList.length && channelList.length > 0
+                        ? 'Available Channels'
+                        : 'Essential Channels'}
                     </p>
-                    <div className="space-y-1">
-                      {essentialChannels.map((channel) => (
-                        <ChannelItem
-                          key={channel.id}
-                          channel={channel}
-                          isActive={activeChannel === channel.id}
-                          onClick={() => setActiveChannel(channel.id)}
-                          channelType="essential"
-                        />
-                      ))}
-                    </div>
+                    {displayEssentialChannels.length === 0 ? (
+                      <p className="text-xs text-muted-foreground px-3 py-2">
+                        No channels available
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {displayEssentialChannels.map((channel) => (
+                          <ChannelItem
+                            key={channel.id || (channel as any).channel_id}
+                            channel={channel}
+                            isActive={activeChannel === (channel.id || (channel as any).channel_id)}
+                            onClick={() => setActiveChannel(channel.id || (channel as any).channel_id)}
+                            channelType="essential"
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Optional/Development Channels */}

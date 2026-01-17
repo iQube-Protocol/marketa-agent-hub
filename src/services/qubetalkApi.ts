@@ -153,7 +153,14 @@ export const qubetalkApi = {
       method: 'GET',
     });
 
-    return unwrapList<QubeTalkChannel, 'channels'>(data, 'channels');
+    const raw = unwrapList<QubeTalkChannel, 'channels'>(data, 'channels');
+    
+    // Normalize: backend may return channel_id instead of id
+    return raw.map((ch) => ({
+      ...ch,
+      id: ch.id || (ch as any).channel_id || 'unknown',
+      name: ch.name || ch.id || (ch as any).channel_id || 'Unnamed Channel',
+    }));
   },
 
   async createChannel(name: string, description?: string): Promise<QubeTalkChannel> {
