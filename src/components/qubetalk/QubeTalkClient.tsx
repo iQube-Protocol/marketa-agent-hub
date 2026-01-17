@@ -406,10 +406,10 @@ export function QubeTalkClient() {
         <div className="p-4 border-b border-border/50 flex items-center justify-between">
           <div>
             <h3 className="font-semibold">
-              #{channels?.find(c => c.id === activeChannel)?.name || 'Channel'}
+              #{channelList.find(c => c.id === activeChannel)?.name || 'Channel'}
             </h3>
             <p className="text-xs text-muted-foreground">
-              {channels?.find(c => c.id === activeChannel)?.description}
+              {channelList.find(c => c.id === activeChannel)?.description}
             </p>
           </div>
           <div className="flex items-center gap-2">
