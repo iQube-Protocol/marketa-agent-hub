@@ -67,6 +67,24 @@ Deno.serve(async (req) => {
     const forwardApiKey = req.headers.get('apikey') ?? undefined;
     const forwardClientInfo = req.headers.get('x-client-info') ?? undefined;
 
+    // Build request body - inject tenant_id for POST requests
+    let requestBody: unknown = undefined;
+    if (method !== 'GET') {
+      const baseBody = (payload.body ?? {}) as Record<string, unknown>;
+      // Always inject tenant_id into body for POST/PUT/PATCH
+      const enrichedBody: Record<string, unknown> = {
+        ...baseBody,
+        tenant_id: DEFAULT_TENANT_ID,
+      };
+      
+      // For messages endpoint, map 'content' to 'message' if needed
+      if (endpoint === '/messages' && enrichedBody.content && !enrichedBody.message) {
+        enrichedBody.message = enrichedBody.content;
+      }
+      
+      requestBody = enrichedBody;
+    }
+
     const upstreamRes = await fetch(url.toString(), {
       method,
       headers: {
@@ -80,7 +98,7 @@ Deno.serve(async (req) => {
         ...(forwardApiKey ? { apikey: forwardApiKey } : {}),
         ...(forwardClientInfo ? { 'x-client-info': forwardClientInfo } : {}),
       },
-      body: method === 'GET' ? undefined : JSON.stringify(payload.body ?? {}),
+      body: requestBody ? JSON.stringify(requestBody) : undefined,
     });
 
     const text = await upstreamRes.text();
