@@ -195,6 +195,9 @@ export function QubeTalkClient() {
   const essentialChannels = channelList.filter(c => essentialChannelIds.includes(c.id));
   const optionalChannels = channelList.filter(c => optionalChannelIds.includes(c.id));
 
+  // Defensive: API sometimes returns non-arrays on error
+  const messageList = Array.isArray(messages) ? messages : [];
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -433,7 +436,7 @@ export function QubeTalkClient() {
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
-          ) : messages?.length === 0 ? (
+          ) : messageList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <MessageSquare className="w-12 h-12 mb-4 opacity-50" />
               <p>No messages yet</p>
@@ -441,7 +444,7 @@ export function QubeTalkClient() {
             </div>
           ) : (
             <>
-              {messages?.map((message) => (
+              {messageList.map((message) => (
                 <MessageBubble key={message.message_id} message={message} />
               ))}
               <div ref={messagesEndRef} />
