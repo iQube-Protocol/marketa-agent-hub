@@ -17,6 +17,7 @@ type ProxyRequest = {
 
 const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? 'https://dev-beta.aigentz.me';
 const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
+const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'aigentz';
 
 const MAX_UPSTREAM_BODY_CHARS = 1200;
 
@@ -43,6 +44,8 @@ Deno.serve(async (req) => {
     const method = payload.method ?? 'GET';
 
     const url = new URL(`${BASE_URL}${API_PREFIX}${endpoint}`);
+    // Always include tenant_id
+    url.searchParams.set('tenant_id', DEFAULT_TENANT_ID);
     if (payload.query) {
       for (const [key, value] of Object.entries(payload.query)) {
         if (value === undefined || value === null) continue;
