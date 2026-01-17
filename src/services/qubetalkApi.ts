@@ -34,6 +34,13 @@ type ProxyRequest = {
   body?: unknown;
 };
 
+type ListResponse<TItem, TKey extends string> = {
+  success?: boolean;
+  total?: number;
+} & {
+  [K in TKey]?: TItem[];
+};
+
 const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
   const { data, error } = await supabase.functions.invoke('qubetalk-proxy', {
     body: request,
@@ -41,6 +48,19 @@ const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
 
   if (error) throw new Error(error.message);
   return data as T;
+};
+
+const unwrapList = <TItem, TKey extends string>(
+  data: unknown,
+  key: TKey
+): TItem[] => {
+  // Some upstreams return a bare array; others wrap in { success, [key]: [] }
+  if (Array.isArray(data)) return data as TItem[];
+  if (data && typeof data === 'object') {
+    const maybe = (data as Record<string, unknown>)[key];
+    if (Array.isArray(maybe)) return maybe as TItem[];
+  }
+  return [];
 };
 
 /** QubeTalk API Client - Live via Supabase Edge Function proxy */
@@ -51,11 +71,13 @@ export const qubetalkApi = {
 
   // Messages
   async getMessages(channelId?: string): Promise<QubeTalkMessage[]> {
-    return proxyInvoke<QubeTalkMessage[]>({
+    const data = await proxyInvoke<ListResponse<QubeTalkMessage, 'messages'>>({
       endpoint: '/messages',
       method: 'GET',
       query: channelId ? { channel_id: channelId } : undefined,
     });
+
+    return unwrapList<QubeTalkMessage, 'messages'>(data, 'messages');
   },
 
   async sendMessage(
@@ -88,10 +110,12 @@ export const qubetalkApi = {
 
   // Content Transfers
   async getTransfers(): Promise<ContentTransfer[]> {
-    return proxyInvoke<ContentTransfer[]>({
+    const data = await proxyInvoke<ListResponse<ContentTransfer, 'transfers'>>({
       endpoint: '/transfers',
       method: 'GET',
     });
+
+    return unwrapList<ContentTransfer, 'transfers'>(data, 'transfers');
   },
 
   async sendTransfer(
@@ -124,10 +148,12 @@ export const qubetalkApi = {
 
   // Channels
   async getChannels(): Promise<QubeTalkChannel[]> {
-    return proxyInvoke<QubeTalkChannel[]>({
+    const data = await proxyInvoke<ListResponse<QubeTalkChannel, 'channels'>>({
       endpoint: '/channels',
       method: 'GET',
     });
+
+    return unwrapList<QubeTalkChannel, 'channels'>(data, 'channels');
   },
 
   async createChannel(name: string, description?: string): Promise<QubeTalkChannel> {
