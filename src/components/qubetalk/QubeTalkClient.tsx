@@ -189,10 +189,11 @@ export function QubeTalkClient() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Separate essential and optional channels
+  const channelList = Array.isArray(channels) ? channels : [];
   const essentialChannelIds = CHANNEL_CONFIG.essential.map(c => c.channel_id);
   const optionalChannelIds = CHANNEL_CONFIG.optional.map(c => c.channel_id);
-  const essentialChannels = channels?.filter(c => essentialChannelIds.includes(c.id)) || [];
-  const optionalChannels = channels?.filter(c => optionalChannelIds.includes(c.id)) || [];
+  const essentialChannels = channelList.filter(c => essentialChannelIds.includes(c.id));
+  const optionalChannels = channelList.filter(c => optionalChannelIds.includes(c.id));
 
   // Scroll to bottom on new messages
   useEffect(() => {
