@@ -370,15 +370,19 @@ export function QubeTalkClient() {
 
           <TabsContent value="transfers" className="flex-1 m-0">
             <ScrollArea className="h-full px-2 pb-2">
-              {transfers?.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No transfers yet
-                </p>
-              ) : (
-                transfers?.map((transfer) => (
+              {(() => {
+                const transferList = Array.isArray(transfers) ? transfers : [];
+                if (transferList.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No transfers yet
+                    </p>
+                  );
+                }
+                return transferList.map((transfer) => (
                   <TransferItem key={transfer.transfer_id} transfer={transfer} />
-                ))
-              )}
+                ));
+              })()}
             </ScrollArea>
           </TabsContent>
         </Tabs>
