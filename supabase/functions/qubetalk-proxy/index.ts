@@ -18,7 +18,7 @@ type ProxyRequest = {
 const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? 'https://dev-beta.aigentz.me';
 const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
 const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'demo-tenant';
-const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? 'marketa-lvb';
+const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? '5ffe87a0-bd7f-49ba-aa11-d45bc2f6a009';
 
 // Map endpoints to actual API paths
 // /messages goes to root /api/marketa/qubetalk (no suffix)
