@@ -18,8 +18,40 @@ import type {
   PackType,
 } from './types';
 
+import type {
+  TenantConfig,
+  PartnerPack,
+  CustomCampaign,
+  CampaignCatalogItem,
+  TenantPerformance,
+  WebhookTestResult,
+  MakeSetupGuide,
+  PartnerSettings,
+  DeliveryReceipt,
+} from './configTypes';
+
 // Simulated delay for realistic UX
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Tenant context for API headers
+let tenantContext: { tenant_id?: string; persona_id?: string } = {};
+
+/** Set tenant context for all API calls */
+export function setTenantContext(context: { tenant_id: string; persona_id: string }) {
+  tenantContext = context;
+}
+
+/** Get headers with tenant context */
+export function getTenantHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (tenantContext.tenant_id) {
+    headers['x-tenant-id'] = tenantContext.tenant_id;
+  }
+  if (tenantContext.persona_id) {
+    headers['x-persona-id'] = tenantContext.persona_id;
+  }
+  return headers;
+}
 
 // Mock data generators
 const mockPartners: Partner[] = [
@@ -337,6 +369,314 @@ export const marketaApi = {
       profileId,
       data,
       createdAt: new Date().toISOString(),
+    };
+  },
+
+  // ============ RBAC & Config ============
+  
+  /** Get application config including role, tenant, and feature flags */
+  async getConfig(): Promise<TenantConfig> {
+    await delay(200);
+    // Mock config - in production this would call the bridge endpoint
+    // GET /api/marketa/lvb/bridge?action=config
+    const mockConfig: TenantConfig = {
+      role: 'agqAdmin', // Default to admin for development
+      tenant_id: 'tenant_001',
+      persona_id: 'persona_001',
+      feature_flags: {
+        qubetalk_enabled: true,
+        make_enabled: true,
+        partner_rewards_phase2_enabled: false,
+      },
+      partner_name: 'Demo Partner',
+      partner_code: 'DMP',
+    };
+    
+    // Set tenant context for subsequent API calls
+    setTenantContext({
+      tenant_id: mockConfig.tenant_id,
+      persona_id: mockConfig.persona_id,
+    });
+    
+    return mockConfig;
+  },
+
+  // ============ Partner Pack Endpoints ============
+
+  /** Get pack queue for partner */
+  async getPackQueue(): Promise<PartnerPack[]> {
+    await delay(300);
+    return [
+      {
+        id: 'pp1',
+        week_of: '2024-01-29',
+        status: 'pending',
+        channels: ['linkedin', 'x', 'instagram'],
+        items: [
+          {
+            id: 'ppi1',
+            type: 'hero',
+            content: 'Unlock the future of decentralized identity with Qriptopian. Join the revolution today! 🚀',
+            cta: 'Learn More',
+            hashtags: ['#Qriptopian', '#Web3', '#DecentralizedIdentity'],
+          },
+          {
+            id: 'ppi2',
+            type: 'short',
+            content: 'Your identity, your control. #Qriptopian',
+            hashtags: ['#SelfSovereign', '#Privacy'],
+          },
+        ],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ];
+  },
+
+  /** Get pack detail for partner */
+  async getPackDetail(packId: string): Promise<PartnerPack | null> {
+    await delay(200);
+    const queue = await this.getPackQueue();
+    return queue.find(p => p.id === packId) || null;
+  },
+
+  /** Approve and publish pack */
+  async approvePack_partner(data: {
+    packId: string;
+    selectedChannels: string[];
+    scheduleWindows?: { channel: string; time: string }[];
+    edits?: Record<string, string>;
+    comments?: string;
+  }): Promise<{ success: boolean; receipts: DeliveryReceipt[] }> {
+    await delay(500);
+    return {
+      success: true,
+      receipts: data.selectedChannels.map(channel => ({
+        id: `receipt_${Date.now()}_${channel}`,
+        channel,
+        status: 'pending',
+      })),
+    };
+  },
+
+  /** Request edits on a pack */
+  async requestPackEdits(packId: string, feedback: string): Promise<{ success: boolean }> {
+    await delay(400);
+    return { success: true };
+  },
+
+  /** Get publish status and receipts */
+  async getPublishStatus(packId: string): Promise<DeliveryReceipt[]> {
+    await delay(300);
+    return [
+      { id: 'r1', channel: 'linkedin', status: 'delivered', url: 'https://linkedin.com/post/123', delivered_at: new Date().toISOString() },
+      { id: 'r2', channel: 'x', status: 'delivered', url: 'https://x.com/status/456', delivered_at: new Date().toISOString() },
+      { id: 'r3', channel: 'instagram', status: 'pending' },
+    ];
+  },
+
+  // ============ Campaign Endpoints ============
+
+  /** Get campaign catalog (available + active campaigns) */
+  async getCampaignCatalog(): Promise<CampaignCatalogItem[]> {
+    await delay(300);
+    return [
+      {
+        id: 'camp_21awakenings',
+        name: '21 Awakenings',
+        description: 'A 21-day journey of daily video insights and share-to-earn opportunities',
+        type: 'sequence',
+        status: 'available',
+        duration_days: 21,
+        channels: ['x', 'instagram', 'tiktok'],
+        is_joined: false,
+      },
+      {
+        id: 'camp_regcf_launch',
+        name: 'RegCF Launch Campaign',
+        description: 'Coordinated launch campaign for the RegCF investment round',
+        type: 'custom',
+        status: 'active',
+        start_date: '2024-02-01',
+        channels: ['linkedin', 'newsletter', 'discord'],
+        is_joined: true,
+      },
+    ];
+  },
+
+  /** Join a campaign */
+  async joinCampaign(data: {
+    campaignId: string;
+    channels: string[];
+    start_date: string;
+    time_of_day?: string;
+    scheduleWindows?: { day: number; time: string }[];
+  }): Promise<{ success: boolean }> {
+    await delay(400);
+    return { success: true };
+  },
+
+  /** Propose a new campaign (partner) */
+  async proposeCampaign(data: {
+    name: string;
+    objective: string;
+    duration: number;
+    channels: string[];
+    assets?: string[];
+    notes?: string;
+  }): Promise<{ success: boolean; campaign_id: string }> {
+    await delay(500);
+    return { success: true, campaign_id: `camp_${Date.now()}` };
+  },
+
+  /** Get campaign detail */
+  async getCampaignDetail(campaignId: string): Promise<CustomCampaign | null> {
+    await delay(300);
+    return {
+      id: campaignId,
+      name: '21 Awakenings',
+      description: 'A 21-day journey of daily video insights',
+      type: 'sequence',
+      status: 'active',
+      creator_role: 'admin',
+      start_date: '2024-02-01',
+      channels: ['x', 'instagram'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  },
+
+  /** Get campaign status (for partners) */
+  async getCampaignStatus(campaignId: string): Promise<{
+    status: string;
+    current_day?: number;
+    total_days?: number;
+    receipts: DeliveryReceipt[];
+  }> {
+    await delay(300);
+    return {
+      status: 'active',
+      current_day: 5,
+      total_days: 21,
+      receipts: [
+        { id: 'r1', channel: 'x', status: 'delivered', url: 'https://x.com/status/day5' },
+        { id: 'r2', channel: 'instagram', status: 'delivered', url: 'https://instagram.com/p/day5' },
+      ],
+    };
+  },
+
+  // ============ Partner Settings ============
+
+  /** Test webhook connection */
+  async testWebhook_partner(webhookUrl: string): Promise<WebhookTestResult> {
+    await delay(600);
+    return {
+      success: true,
+      message: 'Webhook responded with 200 OK',
+      latency_ms: 145,
+      last_success_at: new Date().toISOString(),
+    };
+  },
+
+  /** Get Make setup guide */
+  async getMakeSetupGuide(): Promise<MakeSetupGuide> {
+    await delay(200);
+    return {
+      steps: [
+        { step: 1, title: 'Create Make Account', description: 'Sign up for a free Make.com account', action_url: 'https://www.make.com/en/register' },
+        { step: 2, title: 'Create New Scenario', description: 'Create a new scenario and add a Webhook trigger' },
+        { step: 3, title: 'Configure Webhook', description: 'Copy the webhook URL and paste it in Partner Settings' },
+        { step: 4, title: 'Add Social Actions', description: 'Add modules for LinkedIn, X, Instagram posting' },
+        { step: 5, title: 'Test Integration', description: 'Use the Test button to verify your webhook works' },
+      ],
+    };
+  },
+
+  /** Get partner settings */
+  async getPartnerSettings(): Promise<PartnerSettings> {
+    await delay(200);
+    return {
+      publishing_method: 'make',
+      make_webhook_url: '',
+      webhook_health: {
+        status: 'unknown',
+      },
+    };
+  },
+
+  /** Update partner settings */
+  async updatePartnerSettings(settings: Partial<PartnerSettings>): Promise<PartnerSettings> {
+    await delay(400);
+    return {
+      publishing_method: settings.publishing_method || 'manual',
+      make_webhook_url: settings.make_webhook_url,
+      webhook_health: {
+        status: settings.make_webhook_url ? 'unknown' : 'unknown',
+      },
+    };
+  },
+
+  // ============ Partner Reports ============
+
+  /** Get tenant performance (partner-scoped) */
+  async getTenantPerformance(): Promise<TenantPerformance> {
+    await delay(300);
+    return {
+      period: 'last_30_days',
+      metrics: {
+        clicks: 1250,
+        impressions: 45000,
+        activations: 89,
+        conversions: 23,
+        rewards_knyt: 12500,
+        rewards_qc: 850,
+      },
+      campaigns: [
+        {
+          campaign_id: 'camp_21awakenings',
+          campaign_name: '21 Awakenings',
+          metrics: {
+            clicks: 650,
+            impressions: 22000,
+            activations: 45,
+            conversions: 12,
+            rewards_knyt: 6500,
+            rewards_qc: 450,
+          },
+        },
+      ],
+    };
+  },
+
+  /** Get campaign-specific performance */
+  async getCampaignPerformance_partner(campaignId: string): Promise<{
+    campaign_id: string;
+    metrics: {
+      clicks: number;
+      impressions: number;
+      activations: number;
+      conversions: number;
+      rewards_knyt: number;
+      rewards_qc: number;
+    };
+    daily_data: { date: string; clicks: number; impressions: number }[];
+  }> {
+    await delay(300);
+    return {
+      campaign_id: campaignId,
+      metrics: {
+        clicks: 650,
+        impressions: 22000,
+        activations: 45,
+        conversions: 12,
+        rewards_knyt: 6500,
+        rewards_qc: 450,
+      },
+      daily_data: [
+        { date: '2024-01-25', clicks: 45, impressions: 1200 },
+        { date: '2024-01-26', clicks: 52, impressions: 1350 },
+        { date: '2024-01-27', clicks: 48, impressions: 1100 },
+      ],
     };
   },
 };
