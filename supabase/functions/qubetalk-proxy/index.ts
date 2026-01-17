@@ -63,11 +63,22 @@ Deno.serve(async (req) => {
 
     console.log('QubeTalk proxy request', { method, url: url.toString(), endpoint, apiPath });
 
+    const forwardAuth = req.headers.get('authorization') ?? undefined;
+    const forwardApiKey = req.headers.get('apikey') ?? undefined;
+    const forwardClientInfo = req.headers.get('x-client-info') ?? undefined;
+
     const upstreamRes = await fetch(url.toString(), {
       method,
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json',
         'x-persona-id': DEFAULT_PERSONA_ID,
+        'x-tenant-id': DEFAULT_TENANT_ID,
+        // Helps bypass ngrok's interstitial warning page on free tunnels.
+        'ngrok-skip-browser-warning': 'true',
+        ...(forwardAuth ? { authorization: forwardAuth } : {}),
+        ...(forwardApiKey ? { apikey: forwardApiKey } : {}),
+        ...(forwardClientInfo ? { 'x-client-info': forwardClientInfo } : {}),
       },
       body: method === 'GET' ? undefined : JSON.stringify(payload.body ?? {}),
     });
