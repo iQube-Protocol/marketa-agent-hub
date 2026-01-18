@@ -28,7 +28,14 @@ import type {
   MakeSetupGuide,
   PartnerSettings,
   DeliveryReceipt,
+  MarketaCampaignDetail,
+  MarketaSequenceItem,
+  PartnerEventPayload,
+  PartnerJoinResponse,
 } from './configTypes';
+
+// Campaign constants
+export const CAMPAIGN_21_AWAKENINGS_ID = 'campaign_1768709183190_qq6f0x0sj';
 
 // Simulated delay for realistic UX
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -375,21 +382,67 @@ export const marketaApi = {
   // ============ RBAC & Config ============
   
   /** Get application config including role, tenant, and feature flags */
-  async getConfig(): Promise<TenantConfig> {
+  async getConfig(testMode?: 'partner' | 'admin' | 'analyst'): Promise<TenantConfig> {
     await delay(200);
     // Mock config - in production this would call the bridge endpoint
     // GET /api/marketa/lvb/bridge?action=config
+    
+    // Check URL for test mode override
+    const urlParams = new URLSearchParams(window.location.search);
+    const modeParam = urlParams.get('mode') || testMode;
+    
+    // Sample Partner Account for testing
+    if (modeParam === 'partner') {
+      const partnerConfig: TenantConfig = {
+        role: 'partnerAdmin',
+        tenant_id: 'tenant_agq_partner_001',
+        persona_id: 'persona_partner_test_001',
+        feature_flags: {
+          qubetalk_enabled: true,
+          make_enabled: true,
+          partner_rewards_phase2_enabled: false,
+        },
+        partner_name: 'Test Partner Account',
+        partner_code: 'TPA',
+      };
+      setTenantContext({
+        tenant_id: partnerConfig.tenant_id,
+        persona_id: partnerConfig.persona_id,
+      });
+      return partnerConfig;
+    }
+    
+    // Sample Analyst Account
+    if (modeParam === 'analyst') {
+      const analystConfig: TenantConfig = {
+        role: 'analyst',
+        tenant_id: 'tenant_agq_001',
+        persona_id: 'persona_analyst_001',
+        feature_flags: {
+          qubetalk_enabled: false,
+          make_enabled: false,
+          partner_rewards_phase2_enabled: false,
+        },
+      };
+      setTenantContext({
+        tenant_id: analystConfig.tenant_id,
+        persona_id: analystConfig.persona_id,
+      });
+      return analystConfig;
+    }
+    
+    // Default: Admin Account
     const mockConfig: TenantConfig = {
-      role: 'agqAdmin', // Default to admin for development
-      tenant_id: 'tenant_001',
-      persona_id: 'persona_001',
+      role: 'agqAdmin',
+      tenant_id: 'tenant_agq_001',
+      persona_id: 'persona_admin_001',
       feature_flags: {
         qubetalk_enabled: true,
         make_enabled: true,
         partner_rewards_phase2_enabled: false,
       },
-      partner_name: 'Demo Partner',
-      partner_code: 'DMP',
+      partner_name: 'AGQ Admin',
+      partner_code: 'AGQ',
     };
     
     // Set tenant context for subsequent API calls
@@ -482,13 +535,13 @@ export const marketaApi = {
     await delay(300);
     return [
       {
-        id: 'camp_21awakenings',
+        id: CAMPAIGN_21_AWAKENINGS_ID,
         name: '21 Awakenings',
         description: 'A 21-day journey of daily video insights and share-to-earn opportunities',
         type: 'sequence',
         status: 'available',
-        duration_days: 21,
-        channels: ['x', 'instagram', 'tiktok'],
+        duration_days: 22, // Includes day 0 explainer
+        channels: ['x', 'instagram', 'tiktok', 'linkedin'],
         is_joined: false,
       },
       {
@@ -504,16 +557,28 @@ export const marketaApi = {
     ];
   },
 
-  /** Join a campaign */
+  /** Join a campaign - POST /api/marketa/partner/campaigns?action=join */
   async joinCampaign(data: {
     campaignId: string;
-    channels: string[];
-    start_date: string;
-    time_of_day?: string;
-    scheduleWindows?: { day: number; time: string }[];
-  }): Promise<{ success: boolean }> {
+    channels?: string[];
+    start_date?: string;
+  }): Promise<PartnerJoinResponse> {
     await delay(400);
-    return { success: true };
+    // In production: POST /api/marketa/partner/campaigns?action=join
+    // Headers: x-tenant-id, x-persona-id
+    return {
+      success: true,
+      participant: {
+        id: `participant_${Date.now()}`,
+        campaign_id: data.campaignId,
+        tenant_id: tenantContext.tenant_id || '',
+        persona_id: tenantContext.persona_id || '',
+        joined_at: new Date().toISOString(),
+        channels: data.channels || [],
+        status: 'active',
+      },
+      joined_at: new Date().toISOString(),
+    };
   },
 
   /** Propose a new campaign (partner) */
@@ -529,21 +594,100 @@ export const marketaApi = {
     return { success: true, campaign_id: `camp_${Date.now()}` };
   },
 
-  /** Get campaign detail */
-  async getCampaignDetail(campaignId: string): Promise<CustomCampaign | null> {
+  /** 
+   * Get campaign detail with sequence items 
+   * GET /api/marketa/admin/campaigns?action=detail&campaignId={campaign_id}
+   * Returns campaign object, marketa_sequence_items[], marketa_partner_rewards[]
+   */
+  async getCampaignDetailFull(campaignId: string): Promise<MarketaCampaignDetail> {
     await delay(300);
+    
+    // Generate 22 sequence items (day 0-21) for 21 Awakenings
+    const sequenceItems: MarketaSequenceItem[] = [];
+    
+    // Day 0 - Main Explainer
+    sequenceItems.push({
+      day_number: 0,
+      title: 'Welcome to 21 Awakenings',
+      description: 'An introduction to your 21-day journey of awakening and transformation.',
+      asset_ref: 'smart_content_qubes:21aw_explainer_main',
+      cta_url: 'https://content.qriptopian.io/21awakenings/day0-explainer',
+      thumbnail_url: 'https://content.qriptopian.io/21awakenings/thumbnails/day0.jpg',
+      explainer: true,
+      status: 'delivered',
+    });
+    
+    // Day 1 - With explainer tag
+    sequenceItems.push({
+      day_number: 1,
+      title: 'The First Awakening',
+      description: 'Begin your journey with the first awakening - understanding your digital identity.',
+      asset_ref: 'smart_content_qubes:21aw_day1_awakening',
+      cta_url: 'https://content.qriptopian.io/21awakenings/day1',
+      thumbnail_url: 'https://content.qriptopian.io/21awakenings/thumbnails/day1.jpg',
+      explainer: true,
+      status: 'delivered',
+    });
+    
+    // Days 2-21
+    const dayTitles = [
+      'Identity Sovereignty', 'Data Ownership', 'Privacy Fundamentals', 
+      'Decentralized Trust', 'Digital Autonomy', 'Reputation Systems',
+      'Verified Credentials', 'Token Economics', 'Community Building',
+      'Value Exchange', 'Smart Contracts', 'Governance Models',
+      'Sustainable Growth', 'Network Effects', 'Innovation Mindset',
+      'Collaborative Action', 'Future Vision', 'Integration Practice',
+      'Mastery Application', 'Community Leadership'
+    ];
+    
+    for (let i = 2; i <= 21; i++) {
+      sequenceItems.push({
+        day_number: i,
+        title: `Day ${i}: ${dayTitles[i - 2] || 'Awakening ' + i}`,
+        description: `Daily insight for day ${i} of your awakening journey.`,
+        asset_ref: `smart_content_qubes:21aw_day${i}`,
+        cta_url: `https://content.qriptopian.io/21awakenings/day${i}`,
+        thumbnail_url: i === 8 ? null : `https://content.qriptopian.io/21awakenings/thumbnails/day${i}.jpg`, // Day 8 test case for null thumbnail
+        explainer: false,
+        status: i <= 5 ? 'delivered' : 'pending',
+      });
+    }
+    
     return {
-      id: campaignId,
-      name: '21 Awakenings',
-      description: 'A 21-day journey of daily video insights',
-      type: 'sequence',
-      status: 'active',
-      creator_role: 'admin',
-      start_date: '2024-02-01',
-      channels: ['x', 'instagram'],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      campaign: {
+        id: campaignId,
+        name: '21 Awakenings',
+        description: 'A 21-day journey of daily video insights and share-to-earn opportunities through the Qriptopian ecosystem.',
+        type: 'sequence',
+        status: 'active',
+        creator_role: 'admin',
+        start_date: '2024-02-01',
+        channels: ['x', 'instagram', 'tiktok', 'linkedin'],
+        created_at: '2024-01-15T10:00:00Z',
+        updated_at: new Date().toISOString(),
+      },
+      marketa_sequence_items: sequenceItems,
+      marketa_partner_rewards: [
+        {
+          id: 'reward_knyt_share',
+          reward_type: 'knyt',
+          reward_value: '50 KNYT per share',
+          reward_terms: 'Earn KNYT tokens for each verified share through Smart Actions',
+        },
+        {
+          id: 'reward_qc_completion',
+          reward_type: 'qc',
+          reward_value: '500 Qc',
+          reward_terms: 'Complete all 21 days to earn bonus Qc tokens',
+        },
+      ],
     };
+  },
+
+  /** Get campaign detail (legacy - for backwards compatibility) */
+  async getCampaignDetail(campaignId: string): Promise<CustomCampaign | null> {
+    const fullDetail = await this.getCampaignDetailFull(campaignId);
+    return fullDetail.campaign;
   },
 
   /** Get campaign status (for partners) */
@@ -551,17 +695,37 @@ export const marketaApi = {
     status: string;
     current_day?: number;
     total_days?: number;
+    is_joined: boolean;
+    joined_at?: string;
     receipts: DeliveryReceipt[];
   }> {
     await delay(300);
     return {
       status: 'active',
       current_day: 5,
-      total_days: 21,
+      total_days: 22,
+      is_joined: true,
+      joined_at: '2024-02-01T10:00:00Z',
       receipts: [
         { id: 'r1', channel: 'x', status: 'delivered', url: 'https://x.com/status/day5' },
         { id: 'r2', channel: 'instagram', status: 'delivered', url: 'https://instagram.com/p/day5' },
       ],
+    };
+  },
+
+  /**
+   * Track partner engagement events
+   * POST /api/marketa/partner/events
+   * Used for analytics in Marketa agent
+   */
+  async trackPartnerEvent(event: PartnerEventPayload): Promise<{ success: boolean; event_id: string }> {
+    await delay(100);
+    console.log('[Marketa Event]', event);
+    // In production: POST /api/marketa/partner/events
+    // Headers: x-tenant-id, x-persona-id
+    return {
+      success: true,
+      event_id: `event_${Date.now()}_${event.event_type}`,
     };
   },
 

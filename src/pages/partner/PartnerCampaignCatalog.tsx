@@ -1,8 +1,6 @@
 /** Partner Campaign Catalog - View and join campaigns */
 
 import { PartnerLayout } from '@/components/layout/PartnerLayout';
-import { useQuery } from '@tanstack/react-query';
-import { marketaApi } from '@/services/marketaApi';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,19 +9,17 @@ import {
   Megaphone, 
   Plus, 
   Calendar, 
-  Clock, 
   CheckCircle2, 
   ArrowRight,
   Loader2,
   Sparkles 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useCampaignCatalog } from '@/hooks/usePartnerApi';
+import { CAMPAIGN_21_AWAKENINGS_ID } from '@/services/marketaApi';
 
 export default function PartnerCampaignCatalog() {
-  const { data: campaigns, isLoading } = useQuery({
-    queryKey: ['partner', 'campaignCatalog'],
-    queryFn: () => marketaApi.getCampaignCatalog(),
-  });
+  const { data: campaigns, isLoading } = useCampaignCatalog();
 
   const availableCampaigns = campaigns?.filter(c => c.status === 'available' && !c.is_joined) || [];
   const activeCampaigns = campaigns?.filter(c => c.is_joined || c.status === 'active') || [];

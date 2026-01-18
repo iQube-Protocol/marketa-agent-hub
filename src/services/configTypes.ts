@@ -55,6 +55,71 @@ export interface PartnerPackItem {
   skip?: boolean;
 }
 
+/** Sequence Item from Marketa Admin API (marketa_sequence_items) */
+export interface MarketaSequenceItem {
+  day_number: number;
+  title: string;
+  description: string;
+  asset_ref: string;
+  cta_url: string;
+  thumbnail_url: string | null;
+  explainer: boolean;
+  status: 'pending' | 'scheduled' | 'delivered' | 'skipped';
+}
+
+/** Partner Rewards from Marketa Admin API */
+export interface MarketaPartnerReward {
+  id: string;
+  reward_type: 'coupon' | 'claim_link' | 'access' | 'knyt' | 'qc';
+  reward_value: string;
+  reward_terms: string;
+  reward_claim_url?: string;
+}
+
+/** Full Campaign Detail from Marketa Admin API */
+export interface MarketaCampaignDetail {
+  campaign: {
+    id: string;
+    name: string;
+    description: string;
+    type: CampaignType;
+    status: 'draft' | 'active' | 'completed' | 'cancelled';
+    creator_role: 'admin' | 'partner';
+    start_date?: string;
+    end_date?: string;
+    channels: string[];
+    created_at: string;
+    updated_at: string;
+  };
+  marketa_sequence_items: MarketaSequenceItem[];
+  marketa_partner_rewards: MarketaPartnerReward[];
+}
+
+/** Partner Event Payload for tracking */
+export interface PartnerEventPayload {
+  campaign_id: string;
+  tenant_id: string;
+  persona_id: string;
+  event_type: 'sequence_view' | 'asset_click' | 'cta_click' | 'share_completed';
+  sequence_day: number;
+  asset_ref?: string;
+}
+
+/** Partner Join Response */
+export interface PartnerJoinResponse {
+  success: boolean;
+  participant: {
+    id: string;
+    campaign_id: string;
+    tenant_id: string;
+    persona_id: string;
+    joined_at: string;
+    channels: string[];
+    status: 'pending' | 'active';
+  };
+  joined_at: string;
+}
+
 export interface SequenceCampaign {
   id: string;
   name: string;
