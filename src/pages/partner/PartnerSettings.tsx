@@ -174,6 +174,37 @@ export default function PartnerSettings() {
           </>
         )}
 
+        {/* Phase 2 Partner Rewards Placeholder */}
+        {hasFeature('partner_rewards_phase2_enabled') ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Info className="h-5 w-5" />
+                API/Webhook Reward Integration
+              </CardTitle>
+              <CardDescription>Connect your reward system</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Configure API endpoints to automatically issue rewards to participants.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-dashed opacity-75">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground">
+                <Info className="h-5 w-5" />
+                API/Webhook Reward Integration
+                <span className="ml-2 rounded bg-muted px-2 py-0.5 text-xs">Coming Soon</span>
+              </CardTitle>
+              <CardDescription>
+                Advanced reward API integration will be available in Phase 2
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
         <Card>
           <CardContent className="pt-6">
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>

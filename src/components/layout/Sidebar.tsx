@@ -1,3 +1,5 @@
+/** Role-aware Admin Sidebar */
+
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -12,23 +14,51 @@ import {
   ChevronRight,
   Sparkles,
   MessageSquare,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useConfig } from '@/contexts/ConfigContext';
 
-const navItems = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/partners', label: 'Partners', icon: Users },
-  { path: '/campaigns', label: 'Campaigns', icon: Package },
-  { path: '/publish', label: 'Publish', icon: Send },
-  { path: '/segments', label: 'Segments', icon: UsersRound },
-  { path: '/reports', label: 'Reports', icon: BarChart3 },
-  { path: '/qubetalk', label: 'QubeTalk', icon: MessageSquare },
+interface NavItem {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  roles?: ('agqAdmin' | 'partnerAdmin' | 'analyst')[];
+  featureFlag?: 'qubetalk_enabled' | 'make_enabled' | 'partner_rewards_phase2_enabled';
+}
+
+const navItems: NavItem[] = [
+  { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['agqAdmin'] },
+  { path: '/partners', label: 'Partners', icon: Users, roles: ['agqAdmin'] },
+  { path: '/campaigns', label: 'Campaigns', icon: Package, roles: ['agqAdmin'] },
+  { path: '/publish', label: 'Publish', icon: Send, roles: ['agqAdmin'] },
+  { path: '/segments', label: 'Segments', icon: UsersRound, roles: ['agqAdmin'] },
+  { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['agqAdmin', 'analyst'] },
+  { path: '/qubetalk', label: 'QubeTalk', icon: MessageSquare, featureFlag: 'qubetalk_enabled' },
 ];
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { config, hasFeature } = useConfig();
+
+  // Filter nav items based on role and feature flags
+  const filteredNavItems = navItems.filter((item) => {
+    // Check role access
+    if (item.roles && !item.roles.includes(config.role)) {
+      return false;
+    }
+    // Check feature flag
+    if (item.featureFlag && !hasFeature(item.featureFlag)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Get user display info
+  const userInitials = config.role === 'agqAdmin' ? 'AD' : config.role === 'analyst' ? 'AN' : 'PA';
+  const userName = config.role === 'agqAdmin' ? 'Admin' : config.role === 'analyst' ? 'Analyst' : config.partner_name || 'Partner';
 
   return (
     <aside
@@ -65,7 +95,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
 
@@ -98,6 +128,39 @@ export function Sidebar() {
 
           return linkContent;
         })}
+
+        {/* Custom Campaigns section for admin */}
+        {config.role === 'agqAdmin' && (
+          <>
+            <div className={cn('my-4 border-t border-sidebar-border', collapsed && 'mx-2')} />
+            {!collapsed && (
+              <p className="mb-2 px-3 text-xs font-semibold uppercase text-sidebar-muted">
+                Custom Campaigns
+              </p>
+            )}
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Link
+                  to="/campaigns?type=custom"
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                    location.search.includes('type=custom')
+                      ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                      : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                  )}
+                >
+                  <Zap className="h-5 w-5 shrink-0" />
+                  {!collapsed && <span>21 Awakenings</span>}
+                </Link>
+              </TooltipTrigger>
+              {collapsed && (
+                <TooltipContent side="right" className="font-medium">
+                  21 Awakenings
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </>
+        )}
       </nav>
 
       {/* Footer */}
@@ -109,15 +172,15 @@ export function Sidebar() {
           )}
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-            MK
+            {userInitials}
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-sidebar-foreground">
-                Marketa Agent
+                {userName}
               </p>
               <p className="truncate text-xs text-sidebar-muted">
-                AigentZ Ecosystem
+                {config.role === 'agqAdmin' ? 'Administrator' : config.role === 'analyst' ? 'Read Only' : 'Partner Admin'}
               </p>
             </div>
           )}
