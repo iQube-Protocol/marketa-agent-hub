@@ -174,12 +174,28 @@ function CampaignCard({ campaign, isActive }: CampaignCardProps) {
           </div>
 
           {/* Action */}
-          <Button asChild className="w-full" variant={isActive ? 'outline' : 'default'}>
-            <Link to={`/p/campaigns/${campaign.id}`}>
-              {isActive ? 'View Status' : 'Join Campaign'}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          {isActive ? (
+            <Button asChild className="w-full" variant="outline">
+              <Link to={`/p/campaigns/${campaign.id}`}>
+                View Status
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              <Button asChild className="flex-1" variant="outline">
+                <Link to={`/p/campaigns/${campaign.id}?preview=1`}>
+                  View Campaign
+                </Link>
+              </Button>
+              <Button asChild className="flex-1" variant="default">
+                <Link to={`/p/campaigns/${campaign.id}`}>
+                  Join Campaign
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -1,7 +1,7 @@
 /** Partner Campaign Detail - View and join campaign with sequence rendering */
 
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { PartnerLayout } from '@/components/layout/PartnerLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -142,8 +142,12 @@ function SequenceDayCard({
 export default function PartnerCampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
+
+  const searchParams = new URLSearchParams(location.search);
+  const isPreview = searchParams.get('preview') === '1';
 
   // Check if this is the 21 Awakenings campaign
   const is21Awakenings = id === CAMPAIGN_21_AWAKENINGS_ID || id === 'camp_21awakenings';
@@ -157,6 +161,8 @@ export default function PartnerCampaignDetail() {
   const isLoading = awakeningsData.isLoading;
   const isJoined = awakeningsData.isJoined;
   const status = awakeningsData.status;
+
+  const isInJoinedOrPreviewView = isJoined || isPreview;
 
   const toggleChannel = (channel: string) => {
     setSelectedChannels(prev =>
@@ -219,10 +225,13 @@ export default function PartnerCampaignDetail() {
           <Badge variant={isSequence ? 'default' : 'secondary'}>
             {campaign.type}
           </Badge>
-          {isJoined && (
-            <Badge variant="outline" className="text-success border-success">
-              <CheckCircle2 className="w-3 h-3 mr-1" />
-              Joined
+          {isInJoinedOrPreviewView && (
+            <Badge
+              variant="outline"
+              className={isJoined ? 'text-success border-success' : 'text-primary border-primary'}
+            >
+              {isJoined && <CheckCircle2 className="w-3 h-3 mr-1" />}
+              {isJoined ? 'Joined' : 'Join'}
             </Badge>
           )}
         </div>
@@ -313,10 +322,10 @@ export default function PartnerCampaignDetail() {
           </Card>
         )}
 
-        <Tabs defaultValue={isJoined ? 'sequence' : 'join'} className="space-y-4">
+        <Tabs defaultValue={isInJoinedOrPreviewView ? 'sequence' : 'join'} className="space-y-4">
           <TabsList>
             {!isJoined && <TabsTrigger value="join">Join Campaign</TabsTrigger>}
-            {isJoined && isSequence && <TabsTrigger value="sequence">Sequence</TabsTrigger>}
+            {isInJoinedOrPreviewView && isSequence && <TabsTrigger value="sequence">Sequence</TabsTrigger>}
             {isJoined && <TabsTrigger value="status">Status</TabsTrigger>}
             <TabsTrigger value="details">Details</TabsTrigger>
           </TabsList>
@@ -401,7 +410,7 @@ export default function PartnerCampaignDetail() {
           )}
 
           {/* Sequence Tab (21 Awakenings specific) */}
-          {isJoined && isSequence && (
+          {isInJoinedOrPreviewView && isSequence && (
             <TabsContent value="sequence" className="space-y-4">
               {/* Progress */}
               <Card>
@@ -411,10 +420,16 @@ export default function PartnerCampaignDetail() {
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Day {awakeningsData.currentDay || 0} of {awakeningsData.totalDays || 22}</span>
-                      <span>{Math.round(((awakeningsData.currentDay || 0) / (awakeningsData.totalDays || 22)) * 100)}%</span>
+                      <span>
+                        Day {isPreview ? 0 : awakeningsData.currentDay || 0} of {awakeningsData.totalDays || 22}
+                      </span>
+                      <span>
+                        {Math.round((((isPreview ? 0 : awakeningsData.currentDay || 0) / (awakeningsData.totalDays || 22)) * 100))}%
+                      </span>
                     </div>
-                    <Progress value={((awakeningsData.currentDay || 0) / (awakeningsData.totalDays || 22)) * 100} />
+                    <Progress
+                      value={(((isPreview ? 0 : awakeningsData.currentDay || 0) / (awakeningsData.totalDays || 22)) * 100)}
+                    />
                   </div>
                 </CardContent>
               </Card>
