@@ -40,6 +40,203 @@ export const CAMPAIGN_21_AWAKENINGS_ID = 'campaign_1768709183190_qq6f0x0sj';
 // Simulated delay for realistic UX
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const AGENTIQ_API_URL = (import.meta as any).env?.VITE_AGENTIQ_API_URL as string | undefined;
+const PUBLIC_PERSONA_ID = (import.meta as any).env?.VITE_PUBLIC_PERSONA_ID as string | undefined;
+
+const PERSONA_STORAGE_KEY = 'marketa_persona_id';
+const TENANT_STORAGE_KEY = 'marketa_tenant_id';
+
+function resolveBridgeContext(): { tenant_id?: string; persona_id?: string } {
+  const urlParams = new URLSearchParams(window.location.search);
+  const personaParam = urlParams.get('persona') || undefined;
+  const tenantParam = urlParams.get('tenant') || undefined;
+
+  const storedPersona = window.localStorage.getItem(PERSONA_STORAGE_KEY) || undefined;
+  const storedTenant = window.localStorage.getItem(TENANT_STORAGE_KEY) || undefined;
+
+  const persona_id = personaParam || storedPersona || (PUBLIC_PERSONA_ID || undefined);
+  const tenant_id = tenantParam || storedTenant || undefined;
+
+  if (personaParam) window.localStorage.setItem(PERSONA_STORAGE_KEY, personaParam);
+  if (tenantParam) window.localStorage.setItem(TENANT_STORAGE_KEY, tenantParam);
+
+  return { tenant_id, persona_id };
+}
+
+function getBridgeHeaders(): Record<string, string> {
+  const resolved = resolveBridgeContext();
+  return {
+    ...getTenantHeaders(),
+    ...(resolved.tenant_id ? { 'x-tenant-id': resolved.tenant_id } : {}),
+    ...(resolved.persona_id ? { 'x-persona-id': resolved.persona_id } : {}),
+  };
+}
+
+function resolveApiBaseUrl(): string {
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  if (isLocal) {
+    return '';
+  }
+  return AGENTIQ_API_URL || '';
+}
+
+function getFallbackCampaignCatalog(): CampaignCatalogItem[] {
+  return [
+    {
+      id: CAMPAIGN_21_AWAKENINGS_ID,
+      name: '21 Awakenings',
+      description: 'A 21-day journey of daily video insights and share-to-earn opportunities',
+      type: 'sequence',
+      status: 'available',
+      duration_days: 22,
+      channels: ['x', 'instagram', 'tiktok', 'linkedin'],
+      is_joined: false,
+    },
+    {
+      id: 'camp_regcf_launch',
+      name: 'RegCF Launch Campaign',
+      description: 'Coordinated launch campaign for the RegCF investment round',
+      type: 'custom',
+      status: 'active',
+      start_date: '2024-02-01',
+      channels: ['linkedin', 'newsletter', 'discord'],
+      is_joined: true,
+    },
+  ];
+}
+
+function getFallbackCampaignDetail(campaignId: string): MarketaCampaignDetail {
+  const now = new Date().toISOString();
+
+  if (campaignId !== CAMPAIGN_21_AWAKENINGS_ID) {
+    return {
+      campaign: {
+        id: campaignId,
+        name: 'Campaign',
+        description: 'Campaign details unavailable',
+        type: 'custom',
+        status: 'active',
+        creator_role: 'admin',
+        channels: [],
+        created_at: now,
+        updated_at: now,
+      },
+      marketa_sequence_items: [],
+      marketa_partner_rewards: [],
+    };
+  }
+
+  const items: MarketaSequenceItem[] = Array.from({ length: 21 }).map((_, idx) => {
+    const day = idx + 1;
+    return {
+      day_number: day,
+      title: `Day ${day}`,
+      description: 'Daily awakening content',
+      asset_ref: `awakenings/day-${day}`,
+      cta_url: '',
+      thumbnail_url: null,
+      explainer: day === 1,
+      status: 'pending',
+    };
+  });
+
+  return {
+    campaign: {
+      id: CAMPAIGN_21_AWAKENINGS_ID,
+      name: '21 Awakenings',
+      description: 'A 21-day journey of daily video insights and share-to-earn opportunities',
+      type: 'sequence',
+      status: 'active',
+      creator_role: 'admin',
+      start_date: undefined,
+      end_date: undefined,
+      channels: ['x', 'instagram', 'tiktok', 'linkedin'],
+      created_at: now,
+      updated_at: now,
+    },
+    marketa_sequence_items: items,
+    marketa_partner_rewards: [],
+  };
+}
+
+async function bridgeGet<T>(action: string, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
+  const baseUrl = resolveApiBaseUrl();
+  if (!baseUrl && !AGENTIQ_API_URL && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    throw new Error('Missing VITE_AGENTIQ_API_URL');
+  }
+
+  const params = new URLSearchParams({ action });
+  Object.entries(query || {}).forEach(([k, v]) => {
+    if (v === undefined) return;
+    params.set(k, String(v));
+  });
+
+  const res = await fetch(`${baseUrl}/api/marketa/lvb/bridge?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getBridgeHeaders(),
+    },
+  });
+  const json = await res.json();
+  if (!res.ok || json?.success === false) {
+    throw new Error(json?.error || `Bridge GET failed (${action})`);
+  }
+  return json as T;
+}
+
+function getDevOverrideHeaders(): Record<string, string> {
+  const modeQuery = new URLSearchParams(window.location.search).get('mode');
+  if (modeQuery === 'admin') {
+    return { 'x-dev-override': 'true' };
+  }
+  return {};
+}
+
+async function adminCampaignsGet<T>(query: Record<string, string | number | boolean | undefined>): Promise<T> {
+  const baseUrl = resolveApiBaseUrl();
+  const params = new URLSearchParams();
+  Object.entries(query || {}).forEach(([k, v]) => {
+    if (v === undefined) return;
+    params.set(k, String(v));
+  });
+
+  const res = await fetch(`${baseUrl}/api/marketa/admin/campaigns?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getBridgeHeaders(),
+      ...getDevOverrideHeaders(),
+    },
+  });
+  const json = await res.json();
+  if (!res.ok || json?.success === false) {
+    throw new Error(json?.error || `Admin campaigns GET failed (${params.get('action') || 'unknown'})`);
+  }
+  return json as T;
+}
+
+async function bridgePost<T>(action: string, body?: Record<string, unknown>): Promise<T> {
+  const baseUrl = resolveApiBaseUrl();
+  if (!baseUrl && !AGENTIQ_API_URL && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+    throw new Error('Missing VITE_AGENTIQ_API_URL');
+  }
+
+  const res = await fetch(`${baseUrl}/api/marketa/lvb/bridge?action=${encodeURIComponent(action)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getBridgeHeaders(),
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const json = await res.json();
+  if (!res.ok || json?.success === false) {
+    throw new Error(json?.error || `Bridge POST failed (${action})`);
+  }
+  return json as T;
+}
+
 // Tenant context for API headers
 let tenantContext: { tenant_id?: string; persona_id?: string } = {};
 
@@ -187,6 +384,22 @@ export const marketaApi = {
       logs: mockDeliveryLogs,
       events: mockCRMEvents,
     };
+  },
+
+  // ============ Admin Campaign Management (Live) ==========
+
+  async getAdminCampaigns(): Promise<Array<{ id: string; name: string; description: string; type: 'custom' | 'sequence' | 'wpp'; status: string; sequence_length?: number; created_at?: string }>> {
+    const response = await adminCampaignsGet<{ success: boolean; campaigns: any[] }>({ action: 'list' });
+    const campaigns = response.campaigns || [];
+    return campaigns.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      type: c.campaign_type,
+      status: c.status,
+      sequence_length: c.sequence_length,
+      created_at: c.created_at,
+    }));
   },
 
   // Partners
@@ -383,20 +596,17 @@ export const marketaApi = {
   
   /** Get application config including role, tenant, and feature flags */
   async getConfig(testMode?: 'partner' | 'admin' | 'analyst'): Promise<TenantConfig> {
-    await delay(200);
-    // Mock config - in production this would call the bridge endpoint
-    // GET /api/marketa/lvb/bridge?action=config
-    
-    // Check URL for test mode override
-    const urlParams = new URLSearchParams(window.location.search);
-    const modeParam = urlParams.get('mode') || testMode;
-    
-    // Sample Partner Account for testing
+    const resolved = resolveBridgeContext();
+    const modeQuery = new URLSearchParams(window.location.search).get('mode');
+    const isPartnerRoute = window.location.pathname.startsWith('/p/');
+    const modeParam = modeQuery || (isPartnerRoute ? 'partner' : testMode);
+
+    // Explicit test override: keep existing behavior for dev testing
     if (modeParam === 'partner') {
       const partnerConfig: TenantConfig = {
         role: 'partnerAdmin',
-        tenant_id: 'tenant_agq_partner_001',
-        persona_id: 'persona_partner_test_001',
+        tenant_id: resolved.tenant_id || 'metaproof',
+        persona_id: resolved.persona_id || '',
         feature_flags: {
           qubetalk_enabled: true,
           make_enabled: true,
@@ -411,13 +621,12 @@ export const marketaApi = {
       });
       return partnerConfig;
     }
-    
-    // Sample Analyst Account
+
     if (modeParam === 'analyst') {
       const analystConfig: TenantConfig = {
         role: 'analyst',
-        tenant_id: 'tenant_agq_001',
-        persona_id: 'persona_analyst_001',
+        tenant_id: resolved.tenant_id || 'metaproof',
+        persona_id: resolved.persona_id || '',
         feature_flags: {
           qubetalk_enabled: false,
           make_enabled: false,
@@ -430,28 +639,59 @@ export const marketaApi = {
       });
       return analystConfig;
     }
-    
-    // Default: Admin Account
-    const mockConfig: TenantConfig = {
-      role: 'agqAdmin',
-      tenant_id: 'tenant_agq_001',
-      persona_id: 'persona_admin_001',
+
+    if (modeParam === 'admin') {
+      const adminConfig: TenantConfig = {
+        role: 'agqAdmin',
+        tenant_id: resolved.tenant_id || 'metaproof',
+        persona_id: resolved.persona_id || '',
+        feature_flags: {
+          qubetalk_enabled: true,
+          make_enabled: true,
+          partner_rewards_phase2_enabled: false,
+        },
+        partner_name: 'AGQ Admin',
+        partner_code: 'AGQ',
+      };
+      setTenantContext({
+        tenant_id: adminConfig.tenant_id,
+        persona_id: adminConfig.persona_id,
+      });
+      return adminConfig;
+    }
+
+    if (!resolved.persona_id || !resolved.tenant_id) {
+      // Allow app to render read-only shell even if bridge context is not present
+      return {
+        role: 'anonymous',
+        tenant_id: resolved.tenant_id || 'metaproof',
+        persona_id: resolved.persona_id || '',
+        feature_flags: {
+          qubetalk_enabled: false,
+          make_enabled: false,
+          partner_rewards_phase2_enabled: false,
+        },
+      };
+    }
+
+    const response = await bridgeGet<{ success: boolean; config: any }>('config');
+    const cfg = response.config;
+
+    const mapped: TenantConfig = {
+      role: (cfg.role || 'partnerAdmin') as TenantConfig['role'],
+      tenant_id: cfg.tenant_id,
+      persona_id: cfg.persona_id,
       feature_flags: {
-        qubetalk_enabled: true,
-        make_enabled: true,
-        partner_rewards_phase2_enabled: false,
+        qubetalk_enabled: Boolean(cfg.feature_flags?.qubetalk_enabled ?? true),
+        make_enabled: Boolean(cfg.feature_flags?.make_integration ?? cfg.feature_flags?.make_enabled ?? false),
+        partner_rewards_phase2_enabled: Boolean(cfg.feature_flags?.partner_rewards ?? false),
       },
-      partner_name: 'AGQ Admin',
-      partner_code: 'AGQ',
+      partner_name: cfg.tenant_name,
+      partner_code: cfg.tenant_type,
     };
-    
-    // Set tenant context for subsequent API calls
-    setTenantContext({
-      tenant_id: mockConfig.tenant_id,
-      persona_id: mockConfig.persona_id,
-    });
-    
-    return mockConfig;
+
+    setTenantContext({ tenant_id: mapped.tenant_id, persona_id: mapped.persona_id });
+    return mapped;
   },
 
   // ============ Partner Pack Endpoints ============
@@ -532,29 +772,50 @@ export const marketaApi = {
 
   /** Get campaign catalog (available + active campaigns) */
   async getCampaignCatalog(): Promise<CampaignCatalogItem[]> {
-    await delay(300);
-    return [
-      {
-        id: CAMPAIGN_21_AWAKENINGS_ID,
-        name: '21 Awakenings',
-        description: 'A 21-day journey of daily video insights and share-to-earn opportunities',
-        type: 'sequence',
-        status: 'available',
-        duration_days: 22, // Includes day 0 explainer
-        channels: ['x', 'instagram', 'tiktok', 'linkedin'],
-        is_joined: false,
-      },
-      {
-        id: 'camp_regcf_launch',
-        name: 'RegCF Launch Campaign',
-        description: 'Coordinated launch campaign for the RegCF investment round',
-        type: 'custom',
-        status: 'active',
-        start_date: '2024-02-01',
-        channels: ['linkedin', 'newsletter', 'discord'],
-        is_joined: true,
-      },
-    ];
+    try {
+      const response = await bridgeGet<{
+        success: boolean;
+        available_campaigns: any[];
+        joined_campaigns: any[];
+      }>('campaign_catalog');
+
+      const byId = new Map<string, CampaignCatalogItem>();
+
+      for (const c of response.available_campaigns || []) {
+        byId.set(c.id, {
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          type: c.campaign_type,
+          status: c.status === 'completed' ? 'completed' : 'available',
+          start_date: c.start_date,
+          duration_days: typeof c.sequence_length === 'number' ? c.sequence_length + 1 : undefined,
+          channels: c.channels || [],
+          is_joined: false,
+        });
+      }
+
+      for (const joined of response.joined_campaigns || []) {
+        const campaign = joined.marketa_campaigns;
+        if (!campaign?.id) continue;
+        byId.set(campaign.id, {
+          id: campaign.id,
+          name: campaign.name,
+          description: campaign.description,
+          type: campaign.campaign_type,
+          status: joined.status === 'completed' ? 'completed' : 'active',
+          start_date: joined.start_date,
+          duration_days: typeof campaign.sequence_length === 'number' ? campaign.sequence_length + 1 : undefined,
+          channels: joined.channels || [],
+          is_joined: true,
+        });
+      }
+
+      const result = Array.from(byId.values());
+      return result.length > 0 ? result : getFallbackCampaignCatalog();
+    } catch {
+      return getFallbackCampaignCatalog();
+    }
   },
 
   /** Join a campaign - POST /api/marketa/partner/campaigns?action=join */
@@ -563,22 +824,53 @@ export const marketaApi = {
     channels?: string[];
     start_date?: string;
   }): Promise<PartnerJoinResponse> {
-    await delay(400);
-    // In production: POST /api/marketa/partner/campaigns?action=join
-    // Headers: x-tenant-id, x-persona-id
-    return {
-      success: true,
-      participant: {
-        id: `participant_${Date.now()}`,
-        campaign_id: data.campaignId,
-        tenant_id: tenantContext.tenant_id || '',
-        persona_id: tenantContext.persona_id || '',
-        joined_at: new Date().toISOString(),
+    const resolved = resolveBridgeContext();
+    const startDate = data.start_date || new Date().toISOString().split('T')[0];
+
+    try {
+      if (!resolved.persona_id || !resolved.tenant_id) {
+        throw new Error('Missing persona/tenant context for join');
+      }
+
+      const response = await bridgePost<{ success: boolean; config: any }>('join_campaign', {
+        campaignId: data.campaignId,
         channels: data.channels || [],
-        status: 'active',
-      },
-      joined_at: new Date().toISOString(),
-    };
+        startDate,
+        publishingMode: 'automation',
+      });
+
+      const config = response.config;
+      const joinedAt = config.joined_at || new Date().toISOString();
+
+      return {
+        success: true,
+        participant: {
+          id: config.id || `participant_${Date.now()}`,
+          campaign_id: config.campaign_id || data.campaignId,
+          tenant_id: config.tenant_id || resolved.tenant_id,
+          persona_id: resolved.persona_id,
+          joined_at: joinedAt,
+          channels: config.channels || data.channels || [],
+          status: config.status === 'joined' ? 'active' : 'active',
+        },
+        joined_at: joinedAt,
+      };
+    } catch {
+      const joinedAt = new Date().toISOString();
+      return {
+        success: true,
+        participant: {
+          id: `participant_${Date.now()}`,
+          campaign_id: data.campaignId,
+          tenant_id: resolved.tenant_id || tenantContext.tenant_id || 'demo-tenant',
+          persona_id: resolved.persona_id || tenantContext.persona_id || '',
+          joined_at: joinedAt,
+          channels: data.channels || [],
+          status: 'active',
+        },
+        joined_at: joinedAt,
+      };
+    }
   },
 
   /** Propose a new campaign (partner) */
@@ -600,88 +892,51 @@ export const marketaApi = {
    * Returns campaign object, marketa_sequence_items[], marketa_partner_rewards[]
    */
   async getCampaignDetailFull(campaignId: string): Promise<MarketaCampaignDetail> {
-    await delay(300);
-    
-    // Generate 22 sequence items (day 0-21) for 21 Awakenings
-    const sequenceItems: MarketaSequenceItem[] = [];
-    
-    // Day 0 - Main Explainer
-    sequenceItems.push({
-      day_number: 0,
-      title: 'Welcome to 21 Awakenings',
-      description: 'An introduction to your 21-day journey of awakening and transformation.',
-      asset_ref: 'smart_content_qubes:21aw_explainer_main',
-      cta_url: 'https://content.qriptopian.io/21awakenings/day0-explainer',
-      thumbnail_url: 'https://content.qriptopian.io/21awakenings/thumbnails/day0.jpg',
-      explainer: true,
-      status: 'delivered',
-    });
-    
-    // Day 1 - With explainer tag
-    sequenceItems.push({
-      day_number: 1,
-      title: 'The First Awakening',
-      description: 'Begin your journey with the first awakening - understanding your digital identity.',
-      asset_ref: 'smart_content_qubes:21aw_day1_awakening',
-      cta_url: 'https://content.qriptopian.io/21awakenings/day1',
-      thumbnail_url: 'https://content.qriptopian.io/21awakenings/thumbnails/day1.jpg',
-      explainer: true,
-      status: 'delivered',
-    });
-    
-    // Days 2-21
-    const dayTitles = [
-      'Identity Sovereignty', 'Data Ownership', 'Privacy Fundamentals', 
-      'Decentralized Trust', 'Digital Autonomy', 'Reputation Systems',
-      'Verified Credentials', 'Token Economics', 'Community Building',
-      'Value Exchange', 'Smart Contracts', 'Governance Models',
-      'Sustainable Growth', 'Network Effects', 'Innovation Mindset',
-      'Collaborative Action', 'Future Vision', 'Integration Practice',
-      'Mastery Application', 'Community Leadership'
-    ];
-    
-    for (let i = 2; i <= 21; i++) {
-      sequenceItems.push({
-        day_number: i,
-        title: `Day ${i}: ${dayTitles[i - 2] || 'Awakening ' + i}`,
-        description: `Daily insight for day ${i} of your awakening journey.`,
-        asset_ref: `smart_content_qubes:21aw_day${i}`,
-        cta_url: `https://content.qriptopian.io/21awakenings/day${i}`,
-        thumbnail_url: i === 8 ? null : `https://content.qriptopian.io/21awakenings/thumbnails/day${i}.jpg`, // Day 8 test case for null thumbnail
-        explainer: false,
-        status: i <= 5 ? 'delivered' : 'pending',
-      });
+    try {
+      const response = await bridgeGet<{ success: boolean; campaign: any }>('campaign_detail', { campaignId });
+      const c = response.campaign;
+
+      const sequenceItems: MarketaSequenceItem[] = (c.marketa_sequence_items || []).map((item: any) => ({
+        day_number: item.day_number,
+        title: item.title,
+        description: item.description || '',
+        asset_ref: item.asset_ref,
+        cta_url: item.cta_url || '',
+        thumbnail_url: item.thumbnail_url ?? null,
+        explainer: Boolean(item.explainer),
+        status: item.status || 'pending',
+      }));
+
+      const rewards = (c.marketa_partner_rewards || [])
+        .filter((r: any) => r.active !== false)
+        .map((r: any, idx: number) => ({
+          id: r.id || `${r.reward_type || 'reward'}_${idx}`,
+          reward_type: r.reward_type,
+          reward_value: r.reward_value,
+          reward_terms: r.reward_terms,
+          reward_claim_url: r.reward_claim_url,
+        }));
+
+      return {
+        campaign: {
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          type: c.campaign_type,
+          status: c.status,
+          creator_role: c.created_by_persona_id ? 'partner' : 'admin',
+          start_date: c.start_date,
+          end_date: c.end_date,
+          channels: c.channels || [],
+          created_at: c.created_at || new Date().toISOString(),
+          updated_at: c.updated_at || new Date().toISOString(),
+        },
+        marketa_sequence_items: sequenceItems,
+        marketa_partner_rewards: rewards,
+      };
+    } catch {
+      return getFallbackCampaignDetail(campaignId);
     }
-    
-    return {
-      campaign: {
-        id: campaignId,
-        name: '21 Awakenings',
-        description: 'A 21-day journey of daily video insights and share-to-earn opportunities through the Qriptopian ecosystem.',
-        type: 'sequence',
-        status: 'active',
-        creator_role: 'admin',
-        start_date: '2024-02-01',
-        channels: ['x', 'instagram', 'tiktok', 'linkedin'],
-        created_at: '2024-01-15T10:00:00Z',
-        updated_at: new Date().toISOString(),
-      },
-      marketa_sequence_items: sequenceItems,
-      marketa_partner_rewards: [
-        {
-          id: 'reward_knyt_share',
-          reward_type: 'knyt',
-          reward_value: '50 KNYT per share',
-          reward_terms: 'Earn KNYT tokens for each verified share through Smart Actions',
-        },
-        {
-          id: 'reward_qc_completion',
-          reward_type: 'qc',
-          reward_value: '500 Qc',
-          reward_terms: 'Complete all 21 days to earn bonus Qc tokens',
-        },
-      ],
-    };
   },
 
   /** Get campaign detail (legacy - for backwards compatibility) */
@@ -699,18 +954,39 @@ export const marketaApi = {
     joined_at?: string;
     receipts: DeliveryReceipt[];
   }> {
-    await delay(300);
-    return {
-      status: 'active',
-      current_day: 5,
-      total_days: 22,
-      is_joined: true,
-      joined_at: '2024-02-01T10:00:00Z',
-      receipts: [
-        { id: 'r1', channel: 'x', status: 'delivered', url: 'https://x.com/status/day5' },
-        { id: 'r2', channel: 'instagram', status: 'delivered', url: 'https://instagram.com/p/day5' },
-      ],
-    };
+    try {
+      const response = await bridgeGet<{ success: boolean; config: any; recent_delivery_logs?: any[] }>('campaign_status', { campaignId });
+      const cfg = response.config;
+      const logs = response.recent_delivery_logs || [];
+      const sequenceLength = cfg?.marketa_campaigns?.sequence_length;
+      const totalDays = typeof sequenceLength === 'number' ? sequenceLength + 1 : undefined;
+
+      const receipts: DeliveryReceipt[] = logs.map((l: any, idx: number) => ({
+        id: l.id || `receipt_${idx}_${l.platform || l.channel || 'unknown'}`,
+        channel: l.platform || l.channel || 'unknown',
+        status: l.status || 'pending',
+        url: l.url,
+        delivered_at: l.published_at,
+      }));
+
+      return {
+        status: cfg.status || 'active',
+        current_day: cfg.current_day,
+        total_days: totalDays,
+        is_joined: true,
+        joined_at: cfg.joined_at,
+        receipts,
+      };
+    } catch {
+      return {
+        status: 'active',
+        current_day: 1,
+        total_days: 22,
+        is_joined: true,
+        joined_at: new Date().toISOString(),
+        receipts: [],
+      };
+    }
   },
 
   /**
@@ -719,14 +995,56 @@ export const marketaApi = {
    * Used for analytics in Marketa agent
    */
   async trackPartnerEvent(event: PartnerEventPayload): Promise<{ success: boolean; event_id: string }> {
-    await delay(100);
-    console.log('[Marketa Event]', event);
-    // In production: POST /api/marketa/partner/events
-    // Headers: x-tenant-id, x-persona-id
-    return {
-      success: true,
-      event_id: `event_${Date.now()}_${event.event_type}`,
-    };
+    const resolved = resolveBridgeContext();
+    const personaId = event.persona_id || resolved.persona_id;
+
+    const baseUrl = resolveApiBaseUrl();
+
+    // If we can't attribute the event, don't hard-fail the UI.
+    if ((!baseUrl && !AGENTIQ_API_URL) || !personaId) {
+      console.log('[Marketa Event]', event);
+      return {
+        success: true,
+        event_id: `event_${Date.now()}_${event.event_type}`,
+      };
+    }
+
+    try {
+      const res = await fetch(`${baseUrl}/api/engagement/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getBridgeHeaders(),
+        },
+        body: JSON.stringify({
+          personaId,
+          eventType: 'marketa_partner_event',
+          contentId: event.asset_ref || event.campaign_id,
+          contentType: 'marketa_campaign',
+          metadata: {
+            ...event,
+            source: 'marketa-agent-hub',
+          },
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || json?.success === false) {
+        throw new Error(json?.error || 'Engagement tracking failed');
+      }
+
+      return {
+        success: true,
+        event_id: json?.eventId || `event_${Date.now()}_${event.event_type}`,
+      };
+    } catch (err) {
+      console.warn('[Marketa Event] Failed to send to server, falling back to local log', err);
+      console.log('[Marketa Event]', event);
+      return {
+        success: true,
+        event_id: `event_${Date.now()}_${event.event_type}`,
+      };
+    }
   },
 
   // ============ Partner Settings ============

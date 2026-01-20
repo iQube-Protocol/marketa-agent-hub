@@ -31,7 +31,7 @@ const partnerNavItems: NavItem[] = [
   { path: '/p/campaigns', label: 'Campaigns', icon: Megaphone },
   { path: '/p/reports', label: 'Reports', icon: BarChart3 },
   { path: '/p/settings', label: 'Settings', icon: Settings },
-  { path: '/qubetalk', label: 'QubeTalk', icon: MessageSquare, featureFlag: 'qubetalk_enabled' },
+  { path: '/p/qubetalk', label: 'QubeTalk', icon: MessageSquare },
 ];
 
 export function PartnerSidebar() {

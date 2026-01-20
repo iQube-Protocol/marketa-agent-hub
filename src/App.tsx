@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ConfigProvider } from "@/contexts/ConfigContext";
 import { AdminGuard, PartnerGuard, ReportsGuard } from "@/components/auth/RouteGuard";
 
@@ -27,6 +27,7 @@ import PartnerCampaignDetail from "./pages/partner/PartnerCampaignDetail";
 import PartnerProposeCampaign from "./pages/partner/PartnerProposeCampaign";
 import PartnerReports from "./pages/partner/PartnerReports";
 import PartnerSettings from "./pages/partner/PartnerSettings";
+import PartnerQubeTalk from "./pages/partner/PartnerQubeTalk";
 
 const queryClient = new QueryClient();
 
@@ -38,8 +39,16 @@ const App = () => (
       <BrowserRouter>
         <ConfigProvider>
           <Routes>
+            <Route path="/" element={<Navigate to="/p/campaigns" replace />} />
+
             {/* Admin Routes */}
-            <Route path="/" element={<AdminGuard><Index /></AdminGuard>} />
+            <Route path="/admin" element={<AdminGuard><Index /></AdminGuard>} />
+            <Route path="/admin/partners" element={<Navigate to="/partners" replace />} />
+            <Route path="/admin/campaigns" element={<Navigate to="/campaigns" replace />} />
+            <Route path="/admin/publish" element={<Navigate to="/publish" replace />} />
+            <Route path="/admin/segments" element={<Navigate to="/segments" replace />} />
+            <Route path="/admin/reports" element={<Navigate to="/reports" replace />} />
+            <Route path="/admin/qubetalk" element={<Navigate to="/qubetalk" replace />} />
             <Route path="/partners" element={<AdminGuard><Partners /></AdminGuard>} />
             <Route path="/partners/:id" element={<AdminGuard><PartnerDetail /></AdminGuard>} />
             <Route path="/campaigns" element={<AdminGuard><Campaigns /></AdminGuard>} />
@@ -58,6 +67,7 @@ const App = () => (
             <Route path="/p/campaigns/:id" element={<PartnerGuard><PartnerCampaignDetail /></PartnerGuard>} />
             <Route path="/p/reports" element={<PartnerGuard><PartnerReports /></PartnerGuard>} />
             <Route path="/p/settings" element={<PartnerGuard><PartnerSettings /></PartnerGuard>} />
+            <Route path="/p/qubetalk" element={<PartnerGuard><PartnerQubeTalk /></PartnerGuard>} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

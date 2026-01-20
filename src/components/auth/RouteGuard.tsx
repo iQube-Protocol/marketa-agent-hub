@@ -27,13 +27,16 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
 
 function getRedirectPath(role: Role): string {
   switch (role) {
+    case 'anonymous':
+      return '/p/campaigns';
     case 'partnerAdmin':
       return '/p/home';
     case 'analyst':
       return '/reports';
     case 'agqAdmin':
+      return '/admin';
     default:
-      return '/';
+      return '/p/campaigns';
   }
 }
 
@@ -49,7 +52,7 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 /** Guard for partner routes */
 export function PartnerGuard({ children }: { children: ReactNode }) {
   return (
-    <RouteGuard allowedRoles={['partnerAdmin', 'agqAdmin']}>
+    <RouteGuard allowedRoles={['anonymous', 'partnerAdmin', 'agqAdmin']}>
       {children}
     </RouteGuard>
   );

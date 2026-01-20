@@ -22,7 +22,7 @@ interface ConfigProviderProps {
 
 export function ConfigProvider({ children }: ConfigProviderProps) {
   const { data: config, isLoading, error } = useQuery({
-    queryKey: ['marketa', 'config'],
+    queryKey: ['marketa', 'config', window.location.search],
     queryFn: () => marketaApi.getConfig(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 3,
@@ -39,32 +39,29 @@ export function ConfigProvider({ children }: ConfigProviderProps) {
     );
   }
 
-  if (error || !config) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <AlertCircle className="h-12 w-12 text-destructive" />
-          <h2 className="text-lg font-semibold">Configuration Error</h2>
-          <p className="max-w-md text-sm text-muted-foreground">
-            Unable to load application configuration. Please try refreshing the page.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Refresh Page
-          </button>
-        </div>
-      </div>
-    );
+  const resolvedConfig: TenantConfig | null = config || null;
+
+  const effectiveConfig: TenantConfig = resolvedConfig || {
+    role: 'anonymous',
+    tenant_id: 'metaproof',
+    persona_id: '',
+    feature_flags: {
+      qubetalk_enabled: false,
+      make_enabled: false,
+      partner_rewards_phase2_enabled: false,
+    },
+  };
+
+  if (error && !resolvedConfig) {
+    console.error('Configuration Error', error);
   }
 
   const contextValue: ConfigContextValue = {
-    config,
-    isAdmin: config.role === 'agqAdmin',
-    isPartner: config.role === 'partnerAdmin',
-    isAnalyst: config.role === 'analyst',
-    hasFeature: (feature: keyof FeatureFlags) => config.feature_flags[feature] ?? false,
+    config: effectiveConfig,
+    isAdmin: effectiveConfig.role === 'agqAdmin',
+    isPartner: effectiveConfig.role === 'partnerAdmin',
+    isAnalyst: effectiveConfig.role === 'analyst',
+    hasFeature: (feature: keyof FeatureFlags) => effectiveConfig.feature_flags[feature] ?? false,
   };
 
   return (

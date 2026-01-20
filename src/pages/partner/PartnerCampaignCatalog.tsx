@@ -19,7 +19,7 @@ import { useCampaignCatalog } from '@/hooks/usePartnerApi';
 import { CAMPAIGN_21_AWAKENINGS_ID } from '@/services/marketaApi';
 
 export default function PartnerCampaignCatalog() {
-  const { data: campaigns, isLoading } = useCampaignCatalog();
+  const { data: campaigns, isLoading, error } = useCampaignCatalog();
 
   const availableCampaigns = campaigns?.filter(c => c.status === 'available' && !c.is_joined) || [];
   const activeCampaigns = campaigns?.filter(c => c.is_joined || c.status === 'active') || [];
@@ -29,6 +29,38 @@ export default function PartnerCampaignCatalog() {
       <PartnerLayout>
         <div className="flex items-center justify-center min-h-[50vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </PartnerLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <PartnerLayout>
+        <div className="p-6 lg:p-8 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Unable to load campaigns</CardTitle>
+              <CardDescription>
+                This usually means the live bridge request is missing identity headers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                {(error as any)?.message || 'Unknown error'}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Try adding query params:
+                <span className="ml-2 font-mono">?tenant=metaproof&amp;persona=&lt;YOUR_PERSONA_ID&gt;</span>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => window.location.reload()}
+              >
+                Reload
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </PartnerLayout>
     );

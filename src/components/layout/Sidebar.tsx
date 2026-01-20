@@ -29,7 +29,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['agqAdmin'] },
+  { path: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['agqAdmin'] },
   { path: '/partners', label: 'Partners', icon: Users, roles: ['agqAdmin'] },
   { path: '/campaigns', label: 'Campaigns', icon: Package, roles: ['agqAdmin'] },
   { path: '/publish', label: 'Publish', icon: Send, roles: ['agqAdmin'] },
@@ -69,7 +69,7 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-        <Link to="/" className="flex items-center gap-2 overflow-hidden">
+        <Link to="/admin" className="flex items-center gap-2 overflow-hidden">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary">
             <Sparkles className="h-4 w-4 text-sidebar-primary-foreground" />
           </div>

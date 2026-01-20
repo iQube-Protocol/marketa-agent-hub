@@ -1,6 +1,6 @@
 /** RBAC and Configuration Types for Marketa Console */
 
-export type Role = 'partnerAdmin' | 'agqAdmin' | 'analyst';
+export type Role = 'anonymous' | 'partnerAdmin' | 'agqAdmin' | 'analyst';
 
 export type CampaignType = 'wpp' | 'custom' | 'sequence';
 
