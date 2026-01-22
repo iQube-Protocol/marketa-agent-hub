@@ -301,13 +301,13 @@ export default function PartnerCampaignDetail() {
                   </ul>
                 </div>
                 <div className="flex-shrink-0">
-                  <div className="rounded-lg bg-background/80 p-4 space-y-2">
+                  <div className="w-full max-w-md rounded-lg bg-background/80 p-4 space-y-2 md:w-80 md:max-w-none lg:w-96">
                     <p className="text-sm font-medium">Preview Days 0-2</p>
                     <div className="grid grid-cols-3 gap-2">
                       {sequenceItems.slice(0, 3).map(item => (
                         <div
                           key={item.day_number}
-                          className="aspect-video rounded bg-muted overflow-hidden"
+                          className="aspect-video w-full rounded bg-muted overflow-hidden"
                         >
                           <img
                             src={item.thumbnail_url || '/placeholder.svg'}
