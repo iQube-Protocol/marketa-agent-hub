@@ -894,50 +894,33 @@ export const marketaApi = {
     const resolved = resolveBridgeContext();
     const startDate = data.start_date || new Date().toISOString().split('T')[0];
 
-    try {
-      if (!resolved.persona_id || !resolved.tenant_id) {
-        throw new Error('Missing persona/tenant context for join');
-      }
-
-      const response = await bridgePost<{ success: boolean; config: any }>('join_campaign', {
-        campaignId: data.campaignId,
-        channels: data.channels || [],
-        startDate,
-        publishingMode: 'automation',
-      });
-
-      const config = response.config;
-      const joinedAt = config.joined_at || new Date().toISOString();
-
-      return {
-        success: true,
-        participant: {
-          id: config.id || `participant_${Date.now()}`,
-          campaign_id: config.campaign_id || data.campaignId,
-          tenant_id: config.tenant_id || resolved.tenant_id,
-          persona_id: resolved.persona_id,
-          joined_at: joinedAt,
-          channels: config.channels || data.channels || [],
-          status: config.status === 'joined' ? 'active' : 'active',
-        },
-        joined_at: joinedAt,
-      };
-    } catch {
-      const joinedAt = new Date().toISOString();
-      return {
-        success: true,
-        participant: {
-          id: `participant_${Date.now()}`,
-          campaign_id: data.campaignId,
-          tenant_id: resolved.tenant_id || tenantContext.tenant_id || 'demo-tenant',
-          persona_id: resolved.persona_id || tenantContext.persona_id || '',
-          joined_at: joinedAt,
-          channels: data.channels || [],
-          status: 'active',
-        },
-        joined_at: joinedAt,
-      };
+    if (!resolved.persona_id || !resolved.tenant_id) {
+      throw new Error('Missing persona/tenant context for join');
     }
+
+    const response = await bridgePost<{ success: boolean; config: any }>('join_campaign', {
+      campaignId: data.campaignId,
+      channels: data.channels || [],
+      startDate,
+      publishingMode: 'automation',
+    });
+
+    const config = response.config;
+    const joinedAt = config.joined_at || new Date().toISOString();
+
+    return {
+      success: true,
+      participant: {
+        id: config.id || `participant_${Date.now()}`,
+        campaign_id: config.campaign_id || data.campaignId,
+        tenant_id: config.tenant_id || resolved.tenant_id,
+        persona_id: resolved.persona_id,
+        joined_at: joinedAt,
+        channels: config.channels || data.channels || [],
+        status: config.status === 'joined' ? 'active' : 'active',
+      },
+      joined_at: joinedAt,
+    };
   },
 
   /** Propose a new campaign (partner) */
@@ -1046,11 +1029,11 @@ export const marketaApi = {
       };
     } catch {
       return {
-        status: 'active',
-        current_day: 1,
-        total_days: 22,
-        is_joined: true,
-        joined_at: new Date().toISOString(),
+        status: 'available',
+        current_day: undefined,
+        total_days: campaignId === CAMPAIGN_21_AWAKENINGS_ID ? 22 : undefined,
+        is_joined: false,
+        joined_at: undefined,
         receipts: [],
       };
     }

@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCampaignCatalog } from '@/hooks/usePartnerApi';
-import { CAMPAIGN_21_AWAKENINGS_ID } from '@/services/marketaApi';
 
 export default function PartnerCampaignCatalog() {
   const { data: campaigns, isLoading, error } = useCampaignCatalog();
@@ -74,7 +73,7 @@ export default function PartnerCampaignCatalog() {
           <div>
             <h1 className="text-2xl font-bold">Campaigns</h1>
             <p className="text-muted-foreground">
-              Join coordinated campaigns or propose your own
+              Join coordinated campaigns (sequences) or propose your own one-off campaign.
             </p>
           </div>
           <Button asChild>
@@ -85,6 +84,34 @@ export default function PartnerCampaignCatalog() {
           </Button>
         </div>
 
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">What you’re looking at</CardTitle>
+            <CardDescription>
+              Quick guide to “Campaigns” vs “Packs” so it’s easy to navigate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-2">
+            <p>
+              <span className="font-medium text-foreground">Available</span>: campaigns you can join (not active for you yet).
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Joined</span>: campaigns you’ve joined (automation + reporting active).
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Sequences</span>: multi-day daily content (e.g. 21 Awakenings).{' '}
+              <span className="font-medium text-foreground">One‑off</span>: single campaign with custom assets.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Packs</span>: weekly content packs (separate from campaigns).{' '}
+              <Link to="/p/packs" className="underline underline-offset-4 text-primary">
+                Go to Packs
+              </Link>
+              .
+            </p>
+          </CardContent>
+        </Card>
+
         <Tabs defaultValue="available" className="space-y-4">
           <TabsList>
             <TabsTrigger value="available" className="gap-2">
@@ -93,7 +120,7 @@ export default function PartnerCampaignCatalog() {
             </TabsTrigger>
             <TabsTrigger value="active" className="gap-2">
               <Megaphone className="h-4 w-4" />
-              My Campaigns ({activeCampaigns.length})
+              Joined ({activeCampaigns.length})
             </TabsTrigger>
           </TabsList>
 
@@ -161,6 +188,7 @@ interface CampaignCardProps {
 
 function CampaignCard({ campaign, isActive }: CampaignCardProps) {
   const isFeatured = campaign.name === '21 Awakenings';
+  const typeLabel = campaign.type === 'sequence' ? 'Sequence' : 'One-off';
 
   return (
     <Card className={`card-hover ${isFeatured ? 'border-primary/50 bg-primary/5' : ''}`}>
@@ -171,7 +199,7 @@ function CampaignCard({ campaign, isActive }: CampaignCardProps) {
             <CardTitle className="text-lg">{campaign.name}</CardTitle>
           </div>
           <Badge variant={campaign.type === 'sequence' ? 'default' : 'secondary'}>
-            {campaign.type}
+            {typeLabel}
           </Badge>
         </div>
         <CardDescription className="line-clamp-2">

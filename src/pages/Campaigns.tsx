@@ -132,6 +132,25 @@ export default function Campaigns() {
 
         {/* Campaign Type Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">How to use these</CardTitle>
+              <CardDescription>
+                Packs are weekly content bundles; campaigns are longer-running orchestrations (sequences or one-offs).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground space-y-2">
+              <p>
+                <span className="font-medium text-foreground">Weekly Packs</span>: generate/approve a weekly set of posts per partner.
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Sequences</span>: multi-day daily content programs (e.g. 21 Awakenings).
+              </p>
+              <p>
+                <span className="font-medium text-foreground">Custom Campaigns</span>: one-off campaigns with custom assets/workflows.
+              </p>
+            </CardContent>
+          </Card>
           <TabsList>
             <TabsTrigger value="wpp" className="gap-2">
               <Package className="h-4 w-4" />

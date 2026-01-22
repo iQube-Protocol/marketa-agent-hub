@@ -1,17 +1,17 @@
 /** Partner Campaign Detail - View and join campaign with sequence rendering */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { PartnerLayout } from '@/components/layout/PartnerLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   ArrowLeft,
   Megaphone,
@@ -29,7 +29,7 @@ import {
   Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { use21AwakeningsCampaign } from '@/hooks/usePartnerApi';
+import { useCampaignDetailFull, useCampaignStatus, useJoinCampaign, useTrackEvent } from '@/hooks/usePartnerApi';
 import { CAMPAIGN_21_AWAKENINGS_ID } from '@/services/marketaApi';
 import type { MarketaSequenceItem } from '@/services/configTypes';
 
@@ -143,24 +143,24 @@ export default function PartnerCampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const campaignId = id || '';
+
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
+  const [approvalConfirmed, setApprovalConfirmed] = useState(false);
 
   const searchParams = new URLSearchParams(location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // Check if this is the 21 Awakenings campaign
-  const is21Awakenings = id === CAMPAIGN_21_AWAKENINGS_ID || id === 'camp_21awakenings';
+  const detailQuery = useCampaignDetailFull(campaignId);
+  const statusQuery = useCampaignStatus(campaignId);
+  const joinMutation = useJoinCampaign();
+  const trackEventMutation = useTrackEvent();
 
-  // Use the 21 Awakenings hook for that specific campaign
-  const awakeningsData = use21AwakeningsCampaign();
-
-  // For non-21-Awakenings campaigns, we'd use a different hook
-  // For now, redirect to 21 Awakenings if that's what we're viewing
-  const campaign = awakeningsData.campaign;
-  const isLoading = awakeningsData.isLoading;
-  const isJoined = awakeningsData.isJoined;
-  const status = awakeningsData.status;
+  const campaign = detailQuery.data?.campaign;
+  const status = statusQuery.data;
+  const isLoading = detailQuery.isLoading || statusQuery.isLoading;
+  const isJoined = status?.is_joined ?? false;
 
   const isInJoinedOrPreviewView = isJoined || isPreview;
 
@@ -172,12 +172,46 @@ export default function PartnerCampaignDetail() {
 
   const handleJoinCampaign = async () => {
     try {
-      await awakeningsData.joinCampaign(selectedChannels);
-      toast.success('Successfully joined 21 Awakenings!');
+      await joinMutation.mutateAsync({
+        campaignId,
+        channels: selectedChannels,
+        start_date: startDate || undefined,
+      });
+      toast.success('Campaign joined successfully');
     } catch {
-      toast.error('Failed to join campaign');
+      toast.error('Failed to join campaign (check persona/tenant + authorization)');
     }
   };
+
+  const is21Awakenings = campaignId === CAMPAIGN_21_AWAKENINGS_ID || campaignId === 'camp_21awakenings';
+
+  const sequenceItems = useMemo(() => {
+    const raw = detailQuery.data?.marketa_sequence_items || [];
+    return raw.slice().sort((a, b) => a.day_number - b.day_number);
+  }, [detailQuery.data?.marketa_sequence_items]);
+
+  const explainerDays = useMemo(() => sequenceItems.filter((i) => i.explainer), [sequenceItems]);
+  const regularDays = useMemo(() => sequenceItems.filter((i) => !i.explainer), [sequenceItems]);
+
+  const channelOptions = useMemo(() => {
+    const fromCampaign = Array.isArray(campaign?.channels) ? campaign!.channels : [];
+    if (fromCampaign.length > 0) return fromCampaign;
+    // Fallback: common partner channels
+    return ['x', 'linkedin', 'instagram', 'newsletter'];
+  }, [campaign?.channels]);
+
+  useEffect(() => {
+    if (!campaign) return;
+    if (selectedChannels.length === 0 && channelOptions.length > 0) {
+      setSelectedChannels(channelOptions);
+    }
+  }, [campaign, channelOptions, selectedChannels.length]);
+
+  useEffect(() => {
+    if (!startDate) {
+      setStartDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [startDate]);
 
   if (isLoading) {
     return (
@@ -205,6 +239,7 @@ export default function PartnerCampaignDetail() {
   }
 
   const isSequence = campaign.type === 'sequence';
+  const joinDisabled = selectedChannels.length === 0 || !approvalConfirmed || joinMutation.isPending;
 
   return (
     <PartnerLayout>
@@ -231,7 +266,7 @@ export default function PartnerCampaignDetail() {
               className={isJoined ? 'text-success border-success' : 'text-primary border-primary'}
             >
               {isJoined && <CheckCircle2 className="w-3 h-3 mr-1" />}
-              {isJoined ? 'Joined' : 'Join'}
+              {isJoined ? 'Joined' : 'Not Joined'}
             </Badge>
           )}
         </div>
@@ -269,7 +304,7 @@ export default function PartnerCampaignDetail() {
                   <div className="rounded-lg bg-background/80 p-4 space-y-2">
                     <p className="text-sm font-medium">Preview Days 0-2</p>
                     <div className="grid grid-cols-3 gap-2">
-                      {awakeningsData.sequenceItems.slice(0, 3).map(item => (
+                      {sequenceItems.slice(0, 3).map(item => (
                         <div
                           key={item.day_number}
                           className="aspect-video rounded bg-muted overflow-hidden"
@@ -293,7 +328,7 @@ export default function PartnerCampaignDetail() {
         )}
 
         {/* Rewards Section */}
-        {awakeningsData.rewards.length > 0 && (
+        {(detailQuery.data?.marketa_partner_rewards || []).length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -303,7 +338,7 @@ export default function PartnerCampaignDetail() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2">
-                {awakeningsData.rewards.map(reward => (
+                {(detailQuery.data?.marketa_partner_rewards || []).map(reward => (
                   <div
                     key={reward.id}
                     className="flex items-start gap-3 rounded-lg border p-3 bg-muted/30"
@@ -325,7 +360,7 @@ export default function PartnerCampaignDetail() {
         <Tabs defaultValue={isInJoinedOrPreviewView ? 'sequence' : 'join'} className="space-y-4">
           <TabsList>
             {!isJoined && <TabsTrigger value="join">Join Campaign</TabsTrigger>}
-            {isInJoinedOrPreviewView && isSequence && <TabsTrigger value="sequence">Sequence</TabsTrigger>}
+            {(isInJoinedOrPreviewView || isPreview) && isSequence && <TabsTrigger value="sequence">Sequence</TabsTrigger>}
             {isJoined && <TabsTrigger value="status">Status</TabsTrigger>}
             <TabsTrigger value="details">Details</TabsTrigger>
           </TabsList>
@@ -337,24 +372,25 @@ export default function PartnerCampaignDetail() {
               <Card>
                 <CardHeader>
                   <CardTitle>Select Channels</CardTitle>
-                  <CardDescription>Choose which channels to participate with</CardDescription>
+                  <CardDescription>
+                    Choose where Marketa will publish on your behalf (Make automation). You can change channels later.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-wrap gap-3">
-                    {campaign.channels.map(channel => (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {channelOptions.map(channel => (
                       <label
                         key={channel}
-                        className={`flex items-center gap-2 rounded-lg border px-4 py-2 cursor-pointer transition-colors ${
-                          selectedChannels.includes(channel)
-                            ? 'border-primary bg-primary/5'
-                            : 'border-muted'
-                        }`}
+                        className="flex items-center gap-3 rounded-lg border px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors"
                       >
-                        <Switch
+                        <Checkbox
                           checked={selectedChannels.includes(channel)}
                           onCheckedChange={() => toggleChannel(channel)}
                         />
-                        <span className="font-medium capitalize">{channel}</span>
+                        <div className="min-w-0">
+                          <p className="font-medium capitalize">{channel}</p>
+                          <p className="text-xs text-muted-foreground">Enable publishing to {channel}</p>
+                        </div>
                       </label>
                     ))}
                   </div>
@@ -381,6 +417,27 @@ export default function PartnerCampaignDetail() {
                 </CardContent>
               </Card>
 
+              {/* Approval */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Approval</CardTitle>
+                  <CardDescription>
+                    Confirm you’re approved to publish on the selected channels. Joining will activate automation in Make.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <label className="flex items-start gap-3 rounded-lg border p-4 cursor-pointer">
+                    <Checkbox checked={approvalConfirmed} onCheckedChange={(v) => setApprovalConfirmed(Boolean(v))} />
+                    <div>
+                      <p className="font-medium">I approve distribution on these channels</p>
+                      <p className="text-sm text-muted-foreground">
+                        This will create/activate your participant config and start the campaign workflow.
+                      </p>
+                    </div>
+                  </label>
+                </CardContent>
+              </Card>
+
               {/* Join Button */}
               <Card>
                 <CardContent className="pt-6">
@@ -394,9 +451,9 @@ export default function PartnerCampaignDetail() {
                     <Button
                       size="lg"
                       onClick={handleJoinCampaign}
-                      disabled={awakeningsData.isJoining}
+                      disabled={joinDisabled}
                     >
-                      {awakeningsData.isJoining ? (
+                      {joinMutation.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -409,8 +466,8 @@ export default function PartnerCampaignDetail() {
             </TabsContent>
           )}
 
-          {/* Sequence Tab (21 Awakenings specific) */}
-          {isInJoinedOrPreviewView && isSequence && (
+          {/* Sequence Tab */}
+          {(isInJoinedOrPreviewView || isPreview) && isSequence && (
             <TabsContent value="sequence" className="space-y-4">
               {/* Progress */}
               <Card>
@@ -421,34 +478,55 @@ export default function PartnerCampaignDetail() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>
-                        Day {isPreview ? 0 : awakeningsData.currentDay || 0} of {awakeningsData.totalDays || 22}
+                        Day {isPreview ? 0 : status?.current_day || 0} of {status?.total_days || sequenceItems.length || 0}
                       </span>
                       <span>
-                        {Math.round((((isPreview ? 0 : awakeningsData.currentDay || 0) / (awakeningsData.totalDays || 22)) * 100))}%
+                        {Math.round((((isPreview ? 0 : status?.current_day || 0) / (status?.total_days || sequenceItems.length || 1)) * 100))}%
                       </span>
                     </div>
                     <Progress
-                      value={(((isPreview ? 0 : awakeningsData.currentDay || 0) / (awakeningsData.totalDays || 22)) * 100)}
+                      value={(((isPreview ? 0 : status?.current_day || 0) / (status?.total_days || sequenceItems.length || 1)) * 100)}
                     />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Explainer Section */}
-              {awakeningsData.explainerDays.length > 0 && (
+              {explainerDays.length > 0 && (
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
                     <Info className="w-4 h-4" />
                     Explainer Videos
                   </h3>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {awakeningsData.explainerDays.map(item => (
+                    {explainerDays.map(item => (
                       <SequenceDayCard
                         key={item.day_number}
                         item={item}
-                        onView={() => awakeningsData.trackSequenceView(item.day_number, item.asset_ref)}
-                        onAssetClick={() => awakeningsData.trackAssetClick(item.day_number, item.asset_ref)}
-                        onCtaClick={() => awakeningsData.trackCtaClick(item.day_number, item.asset_ref)}
+                        onView={() =>
+                          trackEventMutation.mutate({
+                            campaign_id: campaignId,
+                            event_type: 'sequence_view',
+                            sequence_day: item.day_number,
+                            asset_ref: item.asset_ref,
+                          })
+                        }
+                        onAssetClick={() =>
+                          trackEventMutation.mutate({
+                            campaign_id: campaignId,
+                            event_type: 'asset_click',
+                            sequence_day: item.day_number,
+                            asset_ref: item.asset_ref,
+                          })
+                        }
+                        onCtaClick={() =>
+                          trackEventMutation.mutate({
+                            campaign_id: campaignId,
+                            event_type: 'cta_click',
+                            sequence_day: item.day_number,
+                            asset_ref: item.asset_ref,
+                          })
+                        }
                       />
                     ))}
                   </div>
@@ -459,17 +537,38 @@ export default function PartnerCampaignDetail() {
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  Daily Sequence ({awakeningsData.regularDays.length} days)
+                  Daily Sequence ({regularDays.length} days)
                 </h3>
                 <ScrollArea className="h-[400px] pr-4">
                   <div className="grid gap-3">
-                    {awakeningsData.regularDays.map(item => (
+                    {regularDays.map(item => (
                       <SequenceDayCard
                         key={item.day_number}
                         item={item}
-                        onView={() => awakeningsData.trackSequenceView(item.day_number, item.asset_ref)}
-                        onAssetClick={() => awakeningsData.trackAssetClick(item.day_number, item.asset_ref)}
-                        onCtaClick={() => awakeningsData.trackCtaClick(item.day_number, item.asset_ref)}
+                        onView={() =>
+                          trackEventMutation.mutate({
+                            campaign_id: campaignId,
+                            event_type: 'sequence_view',
+                            sequence_day: item.day_number,
+                            asset_ref: item.asset_ref,
+                          })
+                        }
+                        onAssetClick={() =>
+                          trackEventMutation.mutate({
+                            campaign_id: campaignId,
+                            event_type: 'asset_click',
+                            sequence_day: item.day_number,
+                            asset_ref: item.asset_ref,
+                          })
+                        }
+                        onCtaClick={() =>
+                          trackEventMutation.mutate({
+                            campaign_id: campaignId,
+                            event_type: 'cta_click',
+                            sequence_day: item.day_number,
+                            asset_ref: item.asset_ref,
+                          })
+                        }
                       />
                     ))}
                   </div>
@@ -586,12 +685,14 @@ export default function PartnerCampaignDetail() {
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Sequence Length</dt>
-                    <dd className="mt-1">{awakeningsData.sequenceItems.length} days (includes Day 0)</dd>
+                    <dd className="mt-1">
+                      {sequenceItems.length > 0 ? `${sequenceItems.length} days (includes Day 0)` : 'N/A'}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Channels</dt>
                     <dd className="mt-1 flex gap-1.5 flex-wrap">
-                      {campaign.channels.map(channel => (
+                      {channelOptions.map(channel => (
                         <Badge key={channel} variant="outline">
                           {channel}
                         </Badge>
