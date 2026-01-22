@@ -46,10 +46,14 @@ const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
   const tenantHeaders = getTenantHeaders();
   const fallbackTenantId = window.localStorage.getItem('marketa_tenant_id') || undefined;
   const fallbackPersonaId = window.localStorage.getItem('marketa_persona_id') || undefined;
+  const modeParam = new URLSearchParams(window.location.search).get('mode') || window.localStorage.getItem('marketa_mode') || '';
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const devOverride = isLocal || modeParam === 'admin';
   const headers: Record<string, string> = {
     ...tenantHeaders,
     ...(fallbackTenantId ? { 'x-tenant-id': fallbackTenantId } : {}),
     ...(fallbackPersonaId ? { 'x-persona-id': fallbackPersonaId } : {}),
+    ...(devOverride ? { 'x-dev-override': 'true' } : {}),
   };
 
   const { data, error } = await supabase.functions.invoke('qubetalk-proxy', {

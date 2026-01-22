@@ -3,7 +3,7 @@
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-tenant-id, x-persona-id, x-dev-override',
 };
 
 type AllowedEndpoint = '/channels' | '/messages' | '/transfers';
@@ -76,6 +76,7 @@ Deno.serve(async (req) => {
     const forwardAuth = req.headers.get('authorization') ?? undefined;
     const forwardApiKey = req.headers.get('apikey') ?? undefined;
     const forwardClientInfo = req.headers.get('x-client-info') ?? undefined;
+    const forwardDevOverride = req.headers.get('x-dev-override') ?? undefined;
 
     // Build request body - inject tenant_id for POST requests
     let requestBody: unknown = undefined;
@@ -104,6 +105,7 @@ Deno.serve(async (req) => {
         'x-tenant-id': effectiveTenantId,
         // Helps bypass ngrok's interstitial warning page on free tunnels.
         'ngrok-skip-browser-warning': 'true',
+        ...(forwardDevOverride ? { 'x-dev-override': forwardDevOverride } : {}),
         ...(forwardAuth ? { authorization: forwardAuth } : {}),
         ...(forwardApiKey ? { apikey: forwardApiKey } : {}),
         ...(forwardClientInfo ? { 'x-client-info': forwardClientInfo } : {}),
