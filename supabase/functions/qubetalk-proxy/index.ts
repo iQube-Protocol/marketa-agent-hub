@@ -15,7 +15,7 @@ type ProxyRequest = {
   body?: unknown;
 };
 
-const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? 'https://gravimetrically-innervational-macey.ngrok-free.dev';
+const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? Deno.env.get('AIGENTZ_BASE_URL') ?? 'https://dev-beta.aigentz.me';
 const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
 const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'demo-tenant';
 const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? '5ffe87a0-bd7f-49ba-aa11-d45bc2f6a009';
@@ -38,7 +38,17 @@ Deno.serve(async (req) => {
   }
 
   try {
+    if (!BASE_URL) {
+      return new Response(JSON.stringify({ error: 'QUBETALK_BASE_URL not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const payload = (await req.json()) as ProxyRequest;
+
+    const effectiveTenantId = req.headers.get('x-tenant-id') ?? DEFAULT_TENANT_ID;
+    const effectivePersonaId = req.headers.get('x-persona-id') ?? DEFAULT_PERSONA_ID;
 
     const endpoint = payload?.endpoint;
     if (!endpoint || !['/channels', '/messages', '/transfers'].includes(endpoint)) {
@@ -53,7 +63,7 @@ Deno.serve(async (req) => {
 
     const url = new URL(`${BASE_URL}${API_PREFIX}${apiPath}`);
     // Always include tenant_id
-    url.searchParams.set('tenant_id', DEFAULT_TENANT_ID);
+    url.searchParams.set('tenant_id', effectiveTenantId);
     if (payload.query) {
       for (const [key, value] of Object.entries(payload.query)) {
         if (value === undefined || value === null) continue;
@@ -74,7 +84,7 @@ Deno.serve(async (req) => {
       // Always inject tenant_id into body for POST/PUT/PATCH
       const enrichedBody: Record<string, unknown> = {
         ...baseBody,
-        tenant_id: DEFAULT_TENANT_ID,
+        tenant_id: effectiveTenantId,
       };
       
       // For messages endpoint, map 'content' to 'message' if needed
@@ -90,8 +100,8 @@ Deno.serve(async (req) => {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'x-persona-id': DEFAULT_PERSONA_ID,
-        'x-tenant-id': DEFAULT_TENANT_ID,
+        'x-persona-id': effectivePersonaId,
+        'x-tenant-id': effectiveTenantId,
         // Helps bypass ngrok's interstitial warning page on free tunnels.
         'ngrok-skip-browser-warning': 'true',
         ...(forwardAuth ? { authorization: forwardAuth } : {}),

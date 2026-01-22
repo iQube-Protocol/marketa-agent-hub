@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ConfigProvider } from "@/contexts/ConfigContext";
 import { AdminGuard, PartnerGuard, ReportsGuard } from "@/components/auth/RouteGuard";
 
@@ -31,6 +31,14 @@ import PartnerQubeTalk from "./pages/partner/PartnerQubeTalk";
 
 const queryClient = new QueryClient();
 
+function RootRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('mode');
+  const to = mode === 'admin' ? '/admin' : '/p/campaigns';
+  return <Navigate to={`${to}${location.search || ''}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -39,7 +47,7 @@ const App = () => (
       <BrowserRouter>
         <ConfigProvider>
           <Routes>
-            <Route path="/" element={<Navigate to="/p/campaigns" replace />} />
+            <Route path="/" element={<RootRedirect />} />
 
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminGuard><Index /></AdminGuard>} />

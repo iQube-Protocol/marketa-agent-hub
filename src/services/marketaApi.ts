@@ -45,6 +45,7 @@ const PUBLIC_PERSONA_ID = (import.meta as any).env?.VITE_PUBLIC_PERSONA_ID as st
 
 const PERSONA_STORAGE_KEY = 'marketa_persona_id';
 const TENANT_STORAGE_KEY = 'marketa_tenant_id';
+const HANDLE_CACHE_STORAGE_KEY = 'marketa_handle_id_cache_v1';
 
 function resolveBridgeContext(): { tenant_id?: string; persona_id?: string } {
   const urlParams = new URLSearchParams(window.location.search);
@@ -75,9 +76,69 @@ function getBridgeHeaders(): Record<string, string> {
 function resolveApiBaseUrl(): string {
   const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
   if (isLocal) {
+    // Prefer same-origin in local dev so Vite's `/api` proxy can handle CORS.
     return '';
   }
   return AGENTIQ_API_URL || '';
+}
+
+function readHandleCache(): Record<string, { persona_id?: string; tenant_id?: string }> {
+  try {
+    const raw = window.localStorage.getItem(HANDLE_CACHE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, { persona_id?: string; tenant_id?: string }>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeHandleCache(next: Record<string, { persona_id?: string; tenant_id?: string }>) {
+  try {
+    window.localStorage.setItem(HANDLE_CACHE_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+export async function resolvePersonaAndTenant(input: string): Promise<{ persona_id?: string; tenant_id?: string }> {
+  const trimmed = input.trim();
+  if (!trimmed) return {};
+
+  const cache = readHandleCache();
+  const cached = cache[trimmed];
+  if (cached?.persona_id || cached?.tenant_id) {
+    return cached;
+  }
+
+  if (!trimmed.includes('@')) {
+    const result = { persona_id: trimmed };
+    writeHandleCache({ ...cache, [trimmed]: result });
+    return result;
+  }
+
+  const baseUrl = resolveApiBaseUrl();
+  const url = `${baseUrl}/api/identity/persona/${encodeURIComponent(trimmed)}`;
+
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!resp.ok) {
+    return {};
+  }
+
+  const data = (await resp.json()) as any;
+  const persona_id = data?.id || data?.persona_id || data?.persona?.id || data?.persona?.persona_id;
+  const tenant_id = data?.tenant_id || data?.persona?.tenant_id || data?.tenant?.tenant_id;
+  const resolved = {
+    ...(persona_id ? { persona_id: String(persona_id) } : {}),
+    ...(tenant_id ? { tenant_id: String(tenant_id) } : {}),
+  };
+
+  writeHandleCache({ ...cache, [trimmed]: resolved });
+  return resolved;
 }
 
 function getFallbackCampaignCatalog(): CampaignCatalogItem[] {

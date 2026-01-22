@@ -1,6 +1,7 @@
 /** QubeTalk API Client for agent-to-agent communication */
 
 import { supabase } from '@/integrations/supabase/client';
+import { getTenantHeaders } from '@/services/marketaApi';
 import type {
   QubeTalkMessage,
   ContentTransfer,
@@ -42,8 +43,18 @@ type ListResponse<TItem, TKey extends string> = {
 };
 
 const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
+  const tenantHeaders = getTenantHeaders();
+  const fallbackTenantId = window.localStorage.getItem('marketa_tenant_id') || undefined;
+  const fallbackPersonaId = window.localStorage.getItem('marketa_persona_id') || undefined;
+  const headers: Record<string, string> = {
+    ...tenantHeaders,
+    ...(fallbackTenantId ? { 'x-tenant-id': fallbackTenantId } : {}),
+    ...(fallbackPersonaId ? { 'x-persona-id': fallbackPersonaId } : {}),
+  };
+
   const { data, error } = await supabase.functions.invoke('qubetalk-proxy', {
     body: request,
+    headers,
   });
 
   if (error) throw new Error(error.message);
@@ -219,4 +230,3 @@ export const qubetalkApi = {
     return { valid: errors.length === 0, errors };
   },
 };
-
