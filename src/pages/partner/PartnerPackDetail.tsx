@@ -78,12 +78,13 @@ export default function PartnerPackDetail() {
   });
 
   useEffect(() => {
-    if (!pack?.channels) return;
-    setSelectedChannels((prev) => (prev.length > 0 ? prev : pack.channels));
+    const channels = Array.isArray(pack?.channels) ? pack!.channels : [];
+    if (channels.length === 0) return;
+    setSelectedChannels((prev) => (prev.length > 0 ? prev : channels));
     setChannelTimes((prev) => {
       if (Object.keys(prev).length > 0) return prev;
       const init: Record<string, string> = {};
-      for (const channel of pack.channels) init[channel] = '10:00';
+      for (const channel of channels) init[channel] = '10:00';
       return init;
     });
   }, [pack?.channels]);
@@ -113,6 +114,9 @@ export default function PartnerPackDetail() {
     );
   }
 
+  const packChannels = Array.isArray(pack.channels) ? pack.channels : [];
+  const packItems = Array.isArray(pack.items) ? pack.items : [];
+
   const toggleChannel = (channel: string) => {
     setSelectedChannels(prev => 
       prev.includes(channel) 
@@ -130,9 +134,9 @@ export default function PartnerPackDetail() {
   };
 
   const isPending = pack.status === 'pending';
-  const hero = pack.items.find((i) => i.type === 'hero');
-  const shorts = pack.items.filter((i) => i.type === 'short');
-  const includedChannels = selectedChannels.length > 0 ? selectedChannels : pack.channels;
+  const hero = packItems.find((i) => i.type === 'hero');
+  const shorts = packItems.filter((i) => i.type === 'short');
+  const includedChannels = selectedChannels.length > 0 ? selectedChannels : packChannels;
 
   const schedule = useMemo(() => {
     const base = new Date(`${pack.week_of}T00:00:00`);
@@ -147,11 +151,11 @@ export default function PartnerPackDetail() {
     const scheduled: { id: string; label: string; date: string }[] = [];
 
     // Hero: Monday
-    const heroItem = pack.items.find((i) => i.type === 'hero');
+    const heroItem = packItems.find((i) => i.type === 'hero');
     if (heroItem) scheduled.push({ id: heroItem.id, label: 'Hero', date: toDate(0) });
 
     // Shorts: Tue/Thu/Sat
-    const shortItems = pack.items.filter((i) => i.type === 'short');
+    const shortItems = packItems.filter((i) => i.type === 'short');
     const shortOffsets = [1, 3, 5];
     shortItems.forEach((item, idx) => {
       const day = shortOffsets[Math.min(idx, shortOffsets.length - 1)];
@@ -159,14 +163,14 @@ export default function PartnerPackDetail() {
     });
 
     // Newsletter/Community: Wed/Fri
-    const newsletter = pack.items.find((i) => i.type === 'newsletter');
+    const newsletter = packItems.find((i) => i.type === 'newsletter');
     if (newsletter) scheduled.push({ id: newsletter.id, label: 'Newsletter', date: toDate(2) });
-    const community = pack.items.find((i) => i.type === 'community');
+    const community = packItems.find((i) => i.type === 'community');
     if (community) scheduled.push({ id: community.id, label: 'Community', date: toDate(4) });
 
     const order: Record<string, number> = { Hero: 0, 'Short 1': 1, 'Short 2': 2, 'Short 3': 3, Newsletter: 4, Community: 5 };
     return scheduled.sort((a, b) => (order[a.label] ?? 99) - (order[b.label] ?? 99));
-  }, [pack.items, pack.week_of]);
+  }, [packItems, pack.week_of]);
 
   return (
     <PartnerLayout>
@@ -275,7 +279,7 @@ export default function PartnerPackDetail() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-3">
-                  {pack.channels.map(channel => (
+                  {packChannels.map(channel => (
                     <label
                       key={channel}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2 cursor-pointer transition-colors ${
@@ -305,7 +309,7 @@ export default function PartnerPackDetail() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {pack.items.map(item => (
+                {packItems.map(item => (
                   <div
                     key={item.id}
                     className={`rounded-lg border p-4 transition-opacity ${
@@ -438,7 +442,7 @@ export default function PartnerPackDetail() {
                   </div>
                   <div className="divide-y">
                     {schedule.map((row) => {
-                      const item = pack.items.find((i) => i.id === row.id);
+                      const item = packItems.find((i) => i.id === row.id);
                       return (
                         <div key={row.id} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm">
                           <div className="col-span-4 text-muted-foreground">{row.date}</div>
