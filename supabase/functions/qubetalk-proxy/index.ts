@@ -1,5 +1,6 @@
 // Supabase Edge Function: qubetalk-proxy
 // Proxies QubeTalk requests server-side to avoid browser CORS issues.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +20,101 @@ const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? Deno.env.get('AIGENTZ_BASE
 const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
 const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'demo-tenant';
 const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? '5ffe87a0-bd7f-49ba-aa11-d45bc2f6a009';
+const IDENTITY_PERSONA_PATH_PREFIX = Deno.env.get('QUBETALK_IDENTITY_PERSONA_PATH_PREFIX') ?? '/api/identity/persona/';
+
+const handleCache = new Map<string, { persona_id?: string; tenant_id?: string }>();
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? Deno.env.get('NEXT_PUBLIC_SUPABASE_URL') ?? '';
+// Supabase CLI disallows secrets starting with SUPABASE_, so accept SERVICE_ROLE_KEY.
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+const supabase =
+  SUPABASE_URL && (SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY, {
+        auth: { persistSession: false },
+      })
+    : null;
+
+function isPersonaHandle(value: string | null | undefined): value is string {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.includes('@');
+}
+
+async function resolvePersonaHandle(handle: string): Promise<{ persona_id?: string; tenant_id?: string }> {
+  const key = handle.trim();
+  if (!key) return {};
+
+  const cached = handleCache.get(key);
+  if (cached) return cached;
+
+  const url = `${BASE_URL}${IDENTITY_PERSONA_PATH_PREFIX}${encodeURIComponent(key)}`;
+  const resp = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
+  if (!resp.ok) return {};
+
+  const raw = (await resp.json()) as any;
+  const data = raw?.data ?? raw;
+
+  const persona_id = data?.id || data?.persona_id || data?.persona?.id || data?.persona?.persona_id;
+  const tenant_id = data?.tenant_id || data?.persona?.tenant_id || data?.tenant?.tenant_id;
+
+  const resolved = {
+    ...(persona_id ? { persona_id: String(persona_id) } : {}),
+    ...(tenant_id ? { tenant_id: String(tenant_id) } : {}),
+  };
+
+  handleCache.set(key, resolved);
+  return resolved;
+}
+
+async function resolveCrmPersonaId(input: { identityPersonaId: string; tenantId?: string }): Promise<{ crm_persona_id?: string; tenant_id?: string }> {
+  if (!supabase) return {};
+  const identityPersonaId = input.identityPersonaId.trim();
+  if (!identityPersonaId) return {};
+
+  let query = supabase
+    .from('crm_personas')
+    .select('id, tenant_id')
+    .eq('identity_persona_id', identityPersonaId)
+    .limit(1);
+
+  if (input.tenantId) {
+    query = query.eq('tenant_id', input.tenantId);
+  }
+
+  const { data, error } = await query.single();
+  if (error || !data) return {};
+
+  return { crm_persona_id: data.id, tenant_id: data.tenant_id };
+}
+
+async function resolveCrmPersonaFromHandle(input: { handle: string; tenantId?: string }): Promise<{ crm_persona_id?: string; tenant_id?: string }> {
+  if (!supabase) return {};
+  const handle = input.handle.trim();
+  if (!handle) return {};
+
+  // Prefer the join view if available: it contains fio_handle for identity mapping.
+  // Use tenant_id filter when provided, but fall back to any tenant if not found.
+  const base = supabase
+    .from('crm_personas_with_identity')
+    .select('id, tenant_id')
+    .eq('fio_handle', handle)
+    .limit(1);
+
+  const preferred = input.tenantId ? base.eq('tenant_id', input.tenantId) : base;
+  const preferredRes = await preferred.maybeSingle();
+  if (!preferredRes.error && preferredRes.data?.id) {
+    return { crm_persona_id: String(preferredRes.data.id), tenant_id: preferredRes.data.tenant_id ?? undefined };
+  }
+
+  const fallbackRes = await base.maybeSingle();
+  if (!fallbackRes.error && fallbackRes.data?.id) {
+    return { crm_persona_id: String(fallbackRes.data.id), tenant_id: fallbackRes.data.tenant_id ?? undefined };
+  }
+
+  return {};
+}
 
 // Map endpoints to actual API paths
 // /messages goes to root /api/marketa/qubetalk (no suffix)
@@ -47,8 +143,31 @@ Deno.serve(async (req) => {
 
     const payload = (await req.json()) as ProxyRequest;
 
-    const effectiveTenantId = req.headers.get('x-tenant-id') ?? DEFAULT_TENANT_ID;
-    const effectivePersonaId = req.headers.get('x-persona-id') ?? DEFAULT_PERSONA_ID;
+    const inboundTenant = (req.headers.get('x-tenant-id') ?? '').trim();
+    const inboundPersona = (req.headers.get('x-persona-id') ?? '').trim();
+
+    let effectiveTenantId = inboundTenant || DEFAULT_TENANT_ID;
+    let effectivePersonaId = inboundPersona || DEFAULT_PERSONA_ID;
+
+    // If UI sends a persona handle (email), resolve it to canonical IDs before proxying.
+    // This keeps upstream QubeTalk strict on UUID personas while letting clients use handles.
+    if (isPersonaHandle(inboundPersona)) {
+      // Step 0: if CRM has fio_handle mapping, use it directly.
+      const crmFromHandle = await resolveCrmPersonaFromHandle({ handle: inboundPersona, tenantId: effectiveTenantId });
+      if (crmFromHandle.crm_persona_id) effectivePersonaId = crmFromHandle.crm_persona_id;
+      if (crmFromHandle.tenant_id) effectiveTenantId = crmFromHandle.tenant_id;
+
+      const resolved = await resolvePersonaHandle(inboundPersona);
+      // Step 1: resolve identity persona UUID from handle
+      if (resolved.persona_id) {
+        // Step 2: map identity persona UUID -> CRM persona UUID used by QubeTalk auth
+        const crm = await resolveCrmPersonaId({ identityPersonaId: resolved.persona_id, tenantId: effectiveTenantId });
+        if (crm.crm_persona_id) effectivePersonaId = crm.crm_persona_id;
+        if (crm.tenant_id) effectiveTenantId = crm.tenant_id;
+      }
+      // Only override tenant if identity resolver returns a tenant.
+      if (resolved.tenant_id) effectiveTenantId = resolved.tenant_id;
+    }
 
     const endpoint = payload?.endpoint;
     if (!endpoint || !['/channels', '/messages', '/transfers'].includes(endpoint)) {
