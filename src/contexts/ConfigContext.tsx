@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { marketaApi } from '@/services/marketaApi';
 import type { TenantConfig, Role, FeatureFlags } from '@/services/configTypes';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 interface ConfigContextValue {
   config: TenantConfig;
@@ -21,8 +22,12 @@ interface ConfigProviderProps {
 }
 
 export function ConfigProvider({ children }: ConfigProviderProps) {
+  const location = useLocation();
+
   const { data: config, isLoading, error } = useQuery({
-    queryKey: ['marketa', 'config', window.location.search],
+    // Tie config resolution to the current route + querystring so role changes
+    // (e.g. switching `mode=admin`) take effect immediately.
+    queryKey: ['marketa', 'config', location.pathname, location.search],
     queryFn: () => marketaApi.getConfig(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 3,

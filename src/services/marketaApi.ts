@@ -45,23 +45,28 @@ const PUBLIC_PERSONA_ID = (import.meta as any).env?.VITE_PUBLIC_PERSONA_ID as st
 
 const PERSONA_STORAGE_KEY = 'marketa_persona_id';
 const TENANT_STORAGE_KEY = 'marketa_tenant_id';
+const MODE_STORAGE_KEY = 'marketa_mode';
 const HANDLE_CACHE_STORAGE_KEY = 'marketa_handle_id_cache_v1';
 
-function resolveBridgeContext(): { tenant_id?: string; persona_id?: string } {
+function resolveBridgeContext(): { tenant_id?: string; persona_id?: string; mode?: 'admin' | 'partner' | 'analyst' } {
   const urlParams = new URLSearchParams(window.location.search);
   const personaParam = urlParams.get('persona') || undefined;
   const tenantParam = urlParams.get('tenant') || undefined;
+  const modeParam = (urlParams.get('mode') as 'admin' | 'partner' | 'analyst' | null) || undefined;
 
   const storedPersona = window.localStorage.getItem(PERSONA_STORAGE_KEY) || undefined;
   const storedTenant = window.localStorage.getItem(TENANT_STORAGE_KEY) || undefined;
+  const storedMode = (window.localStorage.getItem(MODE_STORAGE_KEY) as 'admin' | 'partner' | 'analyst' | null) || undefined;
 
   const persona_id = personaParam || storedPersona || (PUBLIC_PERSONA_ID || undefined);
   const tenant_id = tenantParam || storedTenant || undefined;
+  const mode = modeParam || storedMode || undefined;
 
   if (personaParam) window.localStorage.setItem(PERSONA_STORAGE_KEY, personaParam);
   if (tenantParam) window.localStorage.setItem(TENANT_STORAGE_KEY, tenantParam);
+  if (modeParam) window.localStorage.setItem(MODE_STORAGE_KEY, modeParam);
 
-  return { tenant_id, persona_id };
+  return { tenant_id, persona_id, mode };
 }
 
 function getBridgeHeaders(): Record<string, string> {
@@ -660,7 +665,7 @@ export const marketaApi = {
     const resolved = resolveBridgeContext();
     const modeQuery = new URLSearchParams(window.location.search).get('mode');
     const isPartnerRoute = window.location.pathname.startsWith('/p/');
-    const modeParam = modeQuery || (isPartnerRoute ? 'partner' : testMode);
+    const modeParam = modeQuery || (isPartnerRoute ? 'partner' : (resolved.mode || testMode));
 
     // Explicit test override: keep existing behavior for dev testing
     if (modeParam === 'partner') {
@@ -714,6 +719,7 @@ export const marketaApi = {
         partner_name: 'AGQ Admin',
         partner_code: 'AGQ',
       };
+      window.localStorage.setItem(MODE_STORAGE_KEY, 'admin');
       setTenantContext({
         tenant_id: adminConfig.tenant_id,
         persona_id: adminConfig.persona_id,

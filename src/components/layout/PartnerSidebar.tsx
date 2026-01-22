@@ -68,6 +68,7 @@ export function PartnerSidebar() {
 
     if (tenantId) window.localStorage.setItem('marketa_tenant_id', tenantId);
     window.localStorage.setItem('marketa_persona_id', personaId);
+    window.localStorage.setItem('marketa_mode', next.mode);
     navigate(`${next.to}?mode=${next.mode}${tenantId ? `&tenant=${encodeURIComponent(tenantId)}` : ''}&persona=${encodeURIComponent(personaId)}`);
   }
 
@@ -127,6 +128,7 @@ export function PartnerSidebar() {
     if (!params.get('mode')) {
       params.set('mode', location.pathname.startsWith('/p/') ? 'partner' : 'admin');
     }
+    window.localStorage.setItem('marketa_mode', params.get('mode') || (location.pathname.startsWith('/p/') ? 'partner' : 'admin'));
     navigate(`${location.pathname}?${params.toString()}`);
   }
 
