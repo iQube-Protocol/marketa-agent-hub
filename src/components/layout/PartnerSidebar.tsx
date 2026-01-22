@@ -97,13 +97,38 @@ export function PartnerSidebar() {
 
       ['mode', 'tenant', 'persona'].forEach((k) => {
         const v = ctxParams.get(k);
-        if (v) targetParams.set(k, v);
+        // Don't overwrite explicit params in the target URL (e.g. switching mode=admin)
+        if (v && !targetParams.get(k)) targetParams.set(k, v);
       });
 
       const merged = targetParams.toString();
       return merged ? `${rawPath}?${merged}` : rawPath;
     };
   }, [navContextSearch]);
+
+  async function promptSetPersona() {
+    const input = window.prompt('Enter persona id (uuid) or handle (email):', activePersonaId || '');
+    if (!input) return;
+
+    const resolved = await resolvePersonaAndTenant(input);
+    const personaId = resolved.persona_id || input;
+
+    let tenantId = resolved.tenant_id || activeTenantId || window.localStorage.getItem('marketa_tenant_id') || '';
+    if (!tenantId) {
+      tenantId = window.prompt('Enter tenant id:', '') || '';
+    }
+
+    if (tenantId) window.localStorage.setItem('marketa_tenant_id', tenantId);
+    window.localStorage.setItem('marketa_persona_id', personaId);
+
+    const params = new URLSearchParams(location.search);
+    if (tenantId) params.set('tenant', tenantId);
+    params.set('persona', personaId);
+    if (!params.get('mode')) {
+      params.set('mode', location.pathname.startsWith('/p/') ? 'partner' : 'admin');
+    }
+    navigate(`${location.pathname}?${params.toString()}`);
+  }
 
   return (
     <aside
@@ -204,26 +229,31 @@ export function PartnerSidebar() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top" className="w-64">
+            <DropdownMenuItem onClick={() => void promptSetPersona()}>
+              Set Persona / Tenant…
+            </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={!devPartnerPersonaId && !activePersonaId}
               onClick={() =>
-                void switchPersona({
-                  mode: 'partner',
-                  personaId: devPartnerPersonaId || activePersonaId,
-                  to: '/p/campaigns',
-                })
+                devPartnerPersonaId || activePersonaId
+                  ? void switchPersona({
+                      mode: 'partner',
+                      personaId: devPartnerPersonaId || activePersonaId,
+                      to: '/p/campaigns',
+                    })
+                  : navigate(withContext('/p/campaigns?mode=partner'))
               }
             >
               Test Partner
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={!devAdminPersonaId && !activePersonaId}
               onClick={() =>
-                void switchPersona({
-                  mode: 'admin',
-                  personaId: devAdminPersonaId || activePersonaId,
-                  to: '/admin/campaigns',
-                })
+                devAdminPersonaId || activePersonaId
+                  ? void switchPersona({
+                      mode: 'admin',
+                      personaId: devAdminPersonaId || activePersonaId,
+                      to: '/admin/campaigns',
+                    })
+                  : navigate(withContext('/admin/campaigns?mode=admin'))
               }
             >
               Admin
