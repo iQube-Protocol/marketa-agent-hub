@@ -14,6 +14,7 @@ export function useChannels() {
   return useQuery({
     queryKey: ['qubetalk', 'channels'],
     queryFn: () => qubetalkApi.getChannels(),
+    retry: false,
   });
 }
 
@@ -34,6 +35,7 @@ export function useMessages(channelId?: string) {
     queryKey: ['qubetalk', 'messages', channelId],
     queryFn: () => qubetalkApi.getMessages(channelId),
     refetchInterval: 3000, // Poll for new messages
+    retry: false,
   });
 }
 
@@ -62,6 +64,7 @@ export function useTransfers() {
   return useQuery({
     queryKey: ['qubetalk', 'transfers'],
     queryFn: () => qubetalkApi.getTransfers(),
+    retry: false,
   });
 }
 

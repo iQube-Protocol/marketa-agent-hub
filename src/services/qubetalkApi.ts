@@ -42,19 +42,30 @@ type ListResponse<TItem, TKey extends string> = {
   [K in TKey]?: TItem[];
 };
 
-const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
+const isLocalhost = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+const buildContextHeaders = (): Record<string, string> => {
   const tenantHeaders = getTenantHeaders();
   const fallbackTenantId = window.localStorage.getItem('marketa_tenant_id') || undefined;
   const fallbackPersonaId = window.localStorage.getItem('marketa_persona_id') || undefined;
   const modeParam = new URLSearchParams(window.location.search).get('mode') || window.localStorage.getItem('marketa_mode') || '';
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const devOverride = isLocal || modeParam === 'admin';
-  const headers: Record<string, string> = {
+  const devOverride = isLocalhost() || modeParam === 'admin';
+
+  return {
     ...tenantHeaders,
     ...(fallbackTenantId ? { 'x-tenant-id': fallbackTenantId } : {}),
     ...(fallbackPersonaId ? { 'x-persona-id': fallbackPersonaId } : {}),
     ...(devOverride ? { 'x-dev-override': 'true' } : {}),
   };
+};
+
+const getTenantId = (): string | undefined => {
+  const headers = buildContextHeaders();
+  return headers['x-tenant-id'];
+};
+
+const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
+  const headers = buildContextHeaders();
 
   const { data, error } = await supabase.functions.invoke('qubetalk-proxy', {
     body: request,
@@ -64,6 +75,79 @@ const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
   if (error) throw new Error(error.message);
   return data as T;
 };
+
+async function directInvoke<T>(request: ProxyRequest): Promise<T> {
+  // Local dev fallback: go straight to platform via Vite `/api` proxy to avoid Supabase Edge auth issues.
+  const headers = buildContextHeaders();
+  const tenantId = getTenantId();
+
+  const endpoint = request.endpoint;
+  const method = request.method ?? 'GET';
+
+  // Map to platform API paths
+  const path =
+    endpoint === '/messages'
+      ? '/api/marketa/qubetalk'
+      : endpoint === '/channels'
+        ? '/api/marketa/qubetalk/channels'
+        : '/api/marketa/qubetalk/transfers';
+
+  const url = new URL(path, window.location.origin);
+  if (tenantId) url.searchParams.set('tenant_id', tenantId);
+  if (request.query) {
+    for (const [k, v] of Object.entries(request.query)) {
+      if (v === undefined || v === null) continue;
+      url.searchParams.set(k, String(v));
+    }
+  }
+
+  const body =
+    method === 'GET'
+      ? undefined
+      : JSON.stringify({
+          ...(typeof request.body === 'object' && request.body ? (request.body as Record<string, unknown>) : {}),
+          ...(tenantId ? { tenant_id: tenantId } : {}),
+        });
+
+  const resp = await fetch(url.toString(), {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body,
+  });
+
+  const text = await resp.text();
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { raw: text };
+  }
+  if (!resp.ok) {
+    const msg = (json as any)?.error || `QubeTalk request failed (${resp.status})`;
+    throw new Error(msg);
+  }
+  return json as T;
+}
+
+async function invoke<T>(request: ProxyRequest): Promise<T> {
+  if (isLocalhost()) {
+    return directInvoke<T>(request);
+  }
+
+  try {
+    return await proxyInvoke<T>(request);
+  } catch (e) {
+    // If Supabase Edge rejects (403) we can't recover cross-origin in production,
+    // but in dev it is safe to fall back to same-origin `/api` proxy.
+    if (isLocalhost()) {
+      return directInvoke<T>(request);
+    }
+    throw e;
+  }
+}
 
 const unwrapList = <TItem, TKey extends string>(
   data: unknown,
@@ -86,7 +170,7 @@ export const qubetalkApi = {
 
   // Messages
   async getMessages(channelId?: string): Promise<QubeTalkMessage[]> {
-    const data = await proxyInvoke<ListResponse<QubeTalkMessage, 'messages'>>({
+    const data = await invoke<ListResponse<QubeTalkMessage, 'messages'>>({
       endpoint: '/messages',
       method: 'GET',
       query: channelId ? { channel_id: channelId } : undefined,
@@ -112,7 +196,7 @@ export const qubetalkApi = {
         : undefined,
     };
 
-    return proxyInvoke<QubeTalkMessage>({
+    return invoke<QubeTalkMessage>({
       endpoint: '/messages',
       method: 'POST',
       body: {
@@ -125,7 +209,7 @@ export const qubetalkApi = {
 
   // Content Transfers
   async getTransfers(): Promise<ContentTransfer[]> {
-    const data = await proxyInvoke<ListResponse<ContentTransfer, 'transfers'>>({
+    const data = await invoke<ListResponse<ContentTransfer, 'transfers'>>({
       endpoint: '/transfers',
       method: 'GET',
     });
@@ -140,7 +224,7 @@ export const qubetalkApi = {
     name: string,
     iqubeFormat?: Iqube
   ): Promise<ContentTransfer> {
-    return proxyInvoke<ContentTransfer>({
+    return invoke<ContentTransfer>({
       endpoint: '/transfers',
       method: 'POST',
       body: {
@@ -163,7 +247,7 @@ export const qubetalkApi = {
 
   // Channels
   async getChannels(): Promise<QubeTalkChannel[]> {
-    const data = await proxyInvoke<ListResponse<QubeTalkChannel, 'channels'>>({
+    const data = await invoke<ListResponse<QubeTalkChannel, 'channels'>>({
       endpoint: '/channels',
       method: 'GET',
     });
@@ -179,7 +263,7 @@ export const qubetalkApi = {
   },
 
   async createChannel(name: string, description?: string): Promise<QubeTalkChannel> {
-    return proxyInvoke<QubeTalkChannel>({
+    return invoke<QubeTalkChannel>({
       endpoint: '/channels',
       method: 'POST',
       body: { name, description, participants: [CLIENT_AGENT.id] },
