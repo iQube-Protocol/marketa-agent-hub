@@ -1,6 +1,6 @@
 /** Partner Pack Detail - Review and approve pack */
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PartnerLayout } from '@/components/layout/PartnerLayout';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -24,15 +25,18 @@ import {
   X
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useConfig } from '@/contexts/ConfigContext';
 
 export default function PartnerPackDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { config } = useConfig();
 
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [skippedItems, setSkippedItems] = useState<string[]>([]);
   const [feedback, setFeedback] = useState('');
+  const [channelTimes, setChannelTimes] = useState<Record<string, string>>({});
 
   const { data: pack, isLoading } = useQuery({
     queryKey: ['partner', 'pack', id],
@@ -50,6 +54,9 @@ export default function PartnerPackDetail() {
     mutationFn: () => marketaApi.approvePack_partner({
       packId: id!,
       selectedChannels: selectedChannels.length > 0 ? selectedChannels : pack?.channels || [],
+      scheduleWindows: Object.entries(channelTimes)
+        .filter(([channel, time]) => (selectedChannels.length > 0 ? selectedChannels.includes(channel) : true) && Boolean(time))
+        .map(([channel, time]) => ({ channel, time })),
     }),
     onSuccess: () => {
       toast.success('Pack approved and scheduled for publishing!');
@@ -70,12 +77,16 @@ export default function PartnerPackDetail() {
     },
   });
 
-  // Initialize selected channels
-  useState(() => {
-    if (pack?.channels) {
-      setSelectedChannels(pack.channels);
-    }
-  });
+  useEffect(() => {
+    if (!pack?.channels) return;
+    setSelectedChannels((prev) => (prev.length > 0 ? prev : pack.channels));
+    setChannelTimes((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
+      const init: Record<string, string> = {};
+      for (const channel of pack.channels) init[channel] = '10:00';
+      return init;
+    });
+  }, [pack?.channels]);
 
   if (isLoading) {
     return (
@@ -119,6 +130,43 @@ export default function PartnerPackDetail() {
   };
 
   const isPending = pack.status === 'pending';
+  const hero = pack.items.find((i) => i.type === 'hero');
+  const shorts = pack.items.filter((i) => i.type === 'short');
+  const includedChannels = selectedChannels.length > 0 ? selectedChannels : pack.channels;
+
+  const schedule = useMemo(() => {
+    const base = new Date(`${pack.week_of}T00:00:00`);
+    if (Number.isNaN(base.getTime())) return [];
+
+    const toDate = (days: number) => {
+      const d = new Date(base);
+      d.setDate(d.getDate() + days);
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    };
+
+    const scheduled: { id: string; label: string; date: string }[] = [];
+
+    // Hero: Monday
+    const heroItem = pack.items.find((i) => i.type === 'hero');
+    if (heroItem) scheduled.push({ id: heroItem.id, label: 'Hero', date: toDate(0) });
+
+    // Shorts: Tue/Thu/Sat
+    const shortItems = pack.items.filter((i) => i.type === 'short');
+    const shortOffsets = [1, 3, 5];
+    shortItems.forEach((item, idx) => {
+      const day = shortOffsets[Math.min(idx, shortOffsets.length - 1)];
+      scheduled.push({ id: item.id, label: `Short ${idx + 1}`, date: toDate(day) });
+    });
+
+    // Newsletter/Community: Wed/Fri
+    const newsletter = pack.items.find((i) => i.type === 'newsletter');
+    if (newsletter) scheduled.push({ id: newsletter.id, label: 'Newsletter', date: toDate(2) });
+    const community = pack.items.find((i) => i.type === 'community');
+    if (community) scheduled.push({ id: community.id, label: 'Community', date: toDate(4) });
+
+    const order: Record<string, number> = { Hero: 0, 'Short 1': 1, 'Short 2': 2, 'Short 3': 3, Newsletter: 4, Community: 5 };
+    return scheduled.sort((a, b) => (order[a.label] ?? 99) - (order[b.label] ?? 99));
+  }, [pack.items, pack.week_of]);
 
   return (
     <PartnerLayout>
@@ -142,13 +190,79 @@ export default function PartnerPackDetail() {
           </Badge>
         </div>
 
-        <Tabs defaultValue="content" className="space-y-4">
+        <Tabs defaultValue="overview" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="content">Content</TabsTrigger>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="content">Review Content</TabsTrigger>
+            <TabsTrigger value="schedule">Delivery Schedule</TabsTrigger>
             <TabsTrigger value="delivery" disabled={isPending}>
               Delivery Status
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Campaign & Purpose</CardTitle>
+                <CardDescription>
+                  This weekly pack helps MetaProof communicate a consistent narrative and helps you publish with confidence.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="font-medium">For MetaProof</p>
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                      <li>Reinforce the core message: identity, proof, and trust.</li>
+                      <li>Maintain steady weekly reach across partner channels.</li>
+                      <li>Drive action via a single strong CTA in the hero.</li>
+                    </ul>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-medium">For you ({config.partner_name || 'Partner'})</p>
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                      <li>Publish without drafting from scratch.</li>
+                      <li>Get a balanced mix: one hero + supporting shorts.</li>
+                      <li>See delivery status once publishing begins.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <p className="font-medium">What the Hero and Shorts do</p>
+                  <div className="mt-3 grid gap-4 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Hero</p>
+                      <p className="text-sm text-muted-foreground">
+                        The flagship post for the week. It sets context, communicates the main value, and includes the clearest CTA.
+                      </p>
+                      {hero?.content && (
+                        <p className="mt-2 rounded-md bg-background/60 p-2 text-xs text-muted-foreground line-clamp-3">
+                          {hero.content}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Shorts</p>
+                      <p className="text-sm text-muted-foreground">
+                        Supporting micro-posts that reinforce the theme and keep momentum between hero moments.
+                      </p>
+                      {shorts[0]?.content && (
+                        <p className="mt-2 rounded-md bg-background/60 p-2 text-xs text-muted-foreground line-clamp-3">
+                          {shorts[0].content}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="outline">1 Hero</Badge>
+                    <Badge variant="outline">{shorts.length} Shorts</Badge>
+                    <Badge variant="outline">{includedChannels.length} Channels</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="content" className="space-y-6">
             {/* Channel Selection */}
@@ -281,6 +395,71 @@ export default function PartnerPackDetail() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="schedule" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Delivery Schedule</CardTitle>
+                <CardDescription>
+                  Pick a preferred publish time per channel and review the suggested weekly cadence.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {includedChannels.map((channel) => (
+                    <div key={channel} className="rounded-lg border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium capitalize">{channel}</p>
+                        <Badge variant="outline">Local time</Badge>
+                      </div>
+                      <div className="mt-2">
+                        <Label htmlFor={`time-${channel}`} className="text-xs text-muted-foreground">
+                          Preferred publish time
+                        </Label>
+                        <Input
+                          id={`time-${channel}`}
+                          type="time"
+                          value={channelTimes[channel] || ''}
+                          onChange={(e) => setChannelTimes((prev) => ({ ...prev, [channel]: e.target.value }))}
+                          className="mt-1"
+                          disabled={!isPending}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-lg border">
+                  <div className="grid grid-cols-12 gap-2 border-b bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground">
+                    <div className="col-span-4">Date</div>
+                    <div className="col-span-3">Slot</div>
+                    <div className="col-span-5">Content</div>
+                  </div>
+                  <div className="divide-y">
+                    {schedule.map((row) => {
+                      const item = pack.items.find((i) => i.id === row.id);
+                      return (
+                        <div key={row.id} className="grid grid-cols-12 gap-2 px-4 py-3 text-sm">
+                          <div className="col-span-4 text-muted-foreground">{row.date}</div>
+                          <div className="col-span-3">
+                            <Badge variant="secondary" className="capitalize">{row.label}</Badge>
+                          </div>
+                          <div className="col-span-5">
+                            <p className="line-clamp-2">{item?.content || ''}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {schedule.length === 0 && (
+                      <div className="px-4 py-6 text-sm text-muted-foreground">
+                        Schedule unavailable for this pack.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="delivery" className="space-y-4">
