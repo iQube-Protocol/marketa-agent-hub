@@ -178,8 +178,10 @@ export default function PartnerCampaignDetail() {
         start_date: startDate || undefined,
       });
       toast.success('Campaign joined successfully');
-    } catch {
-      toast.error('Failed to join campaign (check persona/tenant + authorization)');
+    } catch (err: any) {
+      const message = err?.message || 'Failed to join campaign (check persona/tenant + authorization)';
+      console.warn('[Join Campaign] failed', err);
+      toast.error(message);
     }
   };
 

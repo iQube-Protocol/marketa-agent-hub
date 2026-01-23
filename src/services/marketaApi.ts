@@ -49,6 +49,10 @@ const MODE_STORAGE_KEY = 'marketa_mode';
 const HANDLE_CACHE_STORAGE_KEY = 'marketa_handle_id_cache_v1';
 const PARTNER_SETTINGS_STORAGE_KEY = 'marketa_partner_settings_v1';
 
+function isLocalhost(): boolean {
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname);
+}
+
 function resolveBridgeContext(): { tenant_id?: string; persona_id?: string; mode?: 'admin' | 'partner' | 'analyst' } {
   const urlParams = new URLSearchParams(window.location.search);
   const personaParam = urlParams.get('persona') || undefined;
@@ -107,8 +111,7 @@ function writePartnerSettings(next: PartnerSettings) {
 }
 
 function resolveApiBaseUrl(): string {
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  if (isLocal) {
+  if (isLocalhost()) {
     // Prefer same-origin in local dev so Vite's `/api` proxy can handle CORS.
     return '';
   }
@@ -270,6 +273,7 @@ async function bridgeGet<T>(action: string, query?: Record<string, string | numb
     headers: {
       'Content-Type': 'application/json',
       ...getBridgeHeaders(),
+      ...getDevOverrideHeaders(),
     },
   });
   const json = await res.json();
@@ -281,7 +285,7 @@ async function bridgeGet<T>(action: string, query?: Record<string, string | numb
 
 function getDevOverrideHeaders(): Record<string, string> {
   const modeQuery = new URLSearchParams(window.location.search).get('mode');
-  if (modeQuery === 'admin') {
+  if (isLocalhost() || modeQuery === 'admin') {
     return { 'x-dev-override': 'true' };
   }
   return {};
@@ -321,6 +325,7 @@ async function bridgePost<T>(action: string, body?: Record<string, unknown>): Pr
     headers: {
       'Content-Type': 'application/json',
       ...getBridgeHeaders(),
+      ...getDevOverrideHeaders(),
     },
     body: JSON.stringify(body || {}),
   });
