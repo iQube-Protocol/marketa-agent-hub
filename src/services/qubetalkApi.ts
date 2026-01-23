@@ -133,15 +133,10 @@ async function directInvoke<T>(request: ProxyRequest): Promise<T> {
 }
 
 async function invoke<T>(request: ProxyRequest): Promise<T> {
-  if (isLocalhost()) {
-    return directInvoke<T>(request);
-  }
-
   try {
     return await proxyInvoke<T>(request);
   } catch (e) {
-    // If Supabase Edge rejects (403) we can't recover cross-origin in production,
-    // but in dev it is safe to fall back to same-origin `/api` proxy.
+    // In dev it is safe to fall back to same-origin `/api` proxy.
     if (isLocalhost()) {
       return directInvoke<T>(request);
     }

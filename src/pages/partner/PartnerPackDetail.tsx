@@ -1,6 +1,6 @@
 /** Partner Pack Detail - Review and approve pack */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PartnerLayout } from '@/components/layout/PartnerLayout';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +26,44 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useConfig } from '@/contexts/ConfigContext';
+
+function buildSuggestedSchedule(input: {
+  week_of: string;
+  items: { id: string; type: string }[];
+}): { id: string; label: string; date: string }[] {
+  const base = new Date(`${input.week_of}T00:00:00`);
+  if (Number.isNaN(base.getTime())) return [];
+
+  const toDate = (days: number) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const items = Array.isArray(input.items) ? input.items : [];
+  const scheduled: { id: string; label: string; date: string }[] = [];
+
+  // Hero: Monday
+  const heroItem = items.find((i) => i.type === 'hero');
+  if (heroItem) scheduled.push({ id: heroItem.id, label: 'Hero', date: toDate(0) });
+
+  // Shorts: Tue/Thu/Sat
+  const shortItems = items.filter((i) => i.type === 'short');
+  const shortOffsets = [1, 3, 5];
+  shortItems.forEach((item, idx) => {
+    const day = shortOffsets[Math.min(idx, shortOffsets.length - 1)];
+    scheduled.push({ id: item.id, label: `Short ${idx + 1}`, date: toDate(day) });
+  });
+
+  // Newsletter/Community: Wed/Fri
+  const newsletter = items.find((i) => i.type === 'newsletter');
+  if (newsletter) scheduled.push({ id: newsletter.id, label: 'Newsletter', date: toDate(2) });
+  const community = items.find((i) => i.type === 'community');
+  if (community) scheduled.push({ id: community.id, label: 'Community', date: toDate(4) });
+
+  const order: Record<string, number> = { Hero: 0, 'Short 1': 1, 'Short 2': 2, 'Short 3': 3, Newsletter: 4, Community: 5 };
+  return scheduled.sort((a, b) => (order[a.label] ?? 99) - (order[b.label] ?? 99));
+}
 
 export default function PartnerPackDetail() {
   const { id } = useParams<{ id: string }>();
@@ -137,40 +175,7 @@ export default function PartnerPackDetail() {
   const hero = packItems.find((i) => i.type === 'hero');
   const shorts = packItems.filter((i) => i.type === 'short');
   const includedChannels = selectedChannels.length > 0 ? selectedChannels : packChannels;
-
-  const schedule = useMemo(() => {
-    const base = new Date(`${pack.week_of}T00:00:00`);
-    if (Number.isNaN(base.getTime())) return [];
-
-    const toDate = (days: number) => {
-      const d = new Date(base);
-      d.setDate(d.getDate() + days);
-      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    };
-
-    const scheduled: { id: string; label: string; date: string }[] = [];
-
-    // Hero: Monday
-    const heroItem = packItems.find((i) => i.type === 'hero');
-    if (heroItem) scheduled.push({ id: heroItem.id, label: 'Hero', date: toDate(0) });
-
-    // Shorts: Tue/Thu/Sat
-    const shortItems = packItems.filter((i) => i.type === 'short');
-    const shortOffsets = [1, 3, 5];
-    shortItems.forEach((item, idx) => {
-      const day = shortOffsets[Math.min(idx, shortOffsets.length - 1)];
-      scheduled.push({ id: item.id, label: `Short ${idx + 1}`, date: toDate(day) });
-    });
-
-    // Newsletter/Community: Wed/Fri
-    const newsletter = packItems.find((i) => i.type === 'newsletter');
-    if (newsletter) scheduled.push({ id: newsletter.id, label: 'Newsletter', date: toDate(2) });
-    const community = packItems.find((i) => i.type === 'community');
-    if (community) scheduled.push({ id: community.id, label: 'Community', date: toDate(4) });
-
-    const order: Record<string, number> = { Hero: 0, 'Short 1': 1, 'Short 2': 2, 'Short 3': 3, Newsletter: 4, Community: 5 };
-    return scheduled.sort((a, b) => (order[a.label] ?? 99) - (order[b.label] ?? 99));
-  }, [packItems, pack.week_of]);
+  const schedule = buildSuggestedSchedule({ week_of: pack.week_of, items: packItems });
 
   return (
     <PartnerLayout>
