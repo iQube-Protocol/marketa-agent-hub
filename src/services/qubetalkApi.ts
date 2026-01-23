@@ -44,24 +44,40 @@ type ListResponse<TItem, TKey extends string> = {
 
 const isLocalhost = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+// Always default to 'metaproof' tenant per platform requirements
+const DEFAULT_TENANT_ID = 'metaproof';
+
 const buildContextHeaders = (): Record<string, string> => {
   const tenantHeaders = getTenantHeaders();
-  const fallbackTenantId = window.localStorage.getItem('marketa_tenant_id') || undefined;
-  const fallbackPersonaId = window.localStorage.getItem('marketa_persona_id') || undefined;
-  const modeParam = new URLSearchParams(window.location.search).get('mode') || window.localStorage.getItem('marketa_mode') || '';
-  const devOverride = isLocalhost() || modeParam === 'admin';
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  // Priority: URL param > localStorage > tenantHeaders > default
+  const tenantId = urlParams.get('tenant') 
+    || window.localStorage.getItem('marketa_tenant_id') 
+    || tenantHeaders['x-tenant-id'] 
+    || DEFAULT_TENANT_ID;
+  
+  const personaId = urlParams.get('persona')
+    || window.localStorage.getItem('marketa_persona_id') 
+    || tenantHeaders['x-persona-id']
+    || '';
+  
+  const modeParam = urlParams.get('mode') || window.localStorage.getItem('marketa_mode') || '';
+  const devOverride = isLocalhost() || modeParam === 'admin' || modeParam === 'partner';
 
   return {
-    ...tenantHeaders,
-    ...(fallbackTenantId ? { 'x-tenant-id': fallbackTenantId } : {}),
-    ...(fallbackPersonaId ? { 'x-persona-id': fallbackPersonaId } : {}),
+    // x-tenant-id is ALWAYS required (default to metaproof)
+    'x-tenant-id': tenantId,
+    // x-persona-id required for auth
+    ...(personaId ? { 'x-persona-id': personaId } : {}),
+    // x-dev-override for local dev and admin/partner modes
     ...(devOverride ? { 'x-dev-override': 'true' } : {}),
   };
 };
 
-const getTenantId = (): string | undefined => {
+const getTenantId = (): string => {
   const headers = buildContextHeaders();
-  return headers['x-tenant-id'];
+  return headers['x-tenant-id'] || DEFAULT_TENANT_ID;
 };
 
 const proxyInvoke = async <T>(request: ProxyRequest): Promise<T> => {
@@ -180,25 +196,26 @@ export const qubetalkApi = {
     contentType: 'text' | 'content_transfer' | 'iqube_transfer' | 'code_snippet' = 'text',
     payload?: unknown
   ): Promise<QubeTalkMessage> {
-    const messageContent: QubeTalkMessage['content'] = {
-      type: contentType,
-      text: content,
-      payload: payload
-        ? {
-            content_type: contentType === 'iqube_transfer' ? 'iqube' : 'json',
-            data: payload,
-          }
-        : undefined,
+    // Platform expects 'message' field for text, not nested content object
+    // Also expects 'recipient_agent' for routing
+    const body: Record<string, unknown> = {
+      channel_id: channelId,
+      message: content,
+      recipient_agent: 'marketa-agq', // Default recipient
     };
+
+    // For non-text types, include payload
+    if (contentType !== 'text' && payload) {
+      body.content = {
+        type: contentType,
+        data: payload,
+      };
+    }
 
     return invoke<QubeTalkMessage>({
       endpoint: '/messages',
       method: 'POST',
-      body: {
-        from_agent: CLIENT_AGENT,
-        content: messageContent,
-        channel_id: channelId,
-      },
+      body,
     });
   },
 
@@ -219,23 +236,18 @@ export const qubetalkApi = {
     name: string,
     iqubeFormat?: Iqube
   ): Promise<ContentTransfer> {
+    // Match platform expected payload format
     return invoke<ContentTransfer>({
       endpoint: '/transfers',
       method: 'POST',
       body: {
-        from_agent: CLIENT_AGENT.id,
-        to_agent: toAgent,
-        content_type: iqubeFormat ? 'iqube' : 'content',
+        recipient_agent: toAgent || 'marketa-agq',
         content: {
-          id: `content_${Date.now()}`,
           type: contentType,
           name,
           data: content,
-          iqube_format: iqubeFormat,
-          created_at: new Date().toISOString(),
+          metadata: iqubeFormat ? { iqube: iqubeFormat } : undefined,
         },
-        iqube_ref: iqubeFormat?.iqube_id,
-        transfer_method: iqubeFormat ? 'iqube' : 'raw_json',
       },
     });
   },

@@ -1,1 +1,7 @@
 project_id = "bsjhfvctmduxhohtllly"
+
+[functions.qubetalk-proxy]
+verify_jwt = false
+
+[functions.marketa-proxy]
+verify_jwt = false
