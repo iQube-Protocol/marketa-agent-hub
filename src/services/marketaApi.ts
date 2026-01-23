@@ -47,6 +47,7 @@ const PERSONA_STORAGE_KEY = 'marketa_persona_id';
 const TENANT_STORAGE_KEY = 'marketa_tenant_id';
 const MODE_STORAGE_KEY = 'marketa_mode';
 const HANDLE_CACHE_STORAGE_KEY = 'marketa_handle_id_cache_v1';
+const PARTNER_SETTINGS_STORAGE_KEY = 'marketa_partner_settings_v1';
 
 function resolveBridgeContext(): { tenant_id?: string; persona_id?: string; mode?: 'admin' | 'partner' | 'analyst' } {
   const urlParams = new URLSearchParams(window.location.search);
@@ -76,6 +77,33 @@ function getBridgeHeaders(): Record<string, string> {
     ...(resolved.tenant_id ? { 'x-tenant-id': resolved.tenant_id } : {}),
     ...(resolved.persona_id ? { 'x-persona-id': resolved.persona_id } : {}),
   };
+}
+
+function partnerSettingsStorageKey(): string {
+  const ctx = resolveBridgeContext();
+  const tenant = ctx.tenant_id || 'unknown-tenant';
+  const persona = ctx.persona_id || 'unknown-persona';
+  return `${PARTNER_SETTINGS_STORAGE_KEY}:${tenant}:${persona}`;
+}
+
+function readPartnerSettings(): PartnerSettings | null {
+  try {
+    const raw = window.localStorage.getItem(partnerSettingsStorageKey());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PartnerSettings;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePartnerSettings(next: PartnerSettings) {
+  try {
+    window.localStorage.setItem(partnerSettingsStorageKey(), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
 }
 
 function resolveApiBaseUrl(): string {
@@ -1127,25 +1155,39 @@ export const marketaApi = {
   /** Get partner settings */
   async getPartnerSettings(): Promise<PartnerSettings> {
     await delay(200);
-    return {
+    const persisted = readPartnerSettings();
+    if (persisted) return persisted;
+
+    const initial: PartnerSettings = {
       publishing_method: 'make',
       make_webhook_url: '',
       webhook_health: {
         status: 'unknown',
       },
     };
+    writePartnerSettings(initial);
+    return initial;
   },
 
   /** Update partner settings */
   async updatePartnerSettings(settings: Partial<PartnerSettings>): Promise<PartnerSettings> {
     await delay(400);
-    return {
-      publishing_method: settings.publishing_method || 'manual',
-      make_webhook_url: settings.make_webhook_url,
+    const current = readPartnerSettings() || {
+      publishing_method: 'manual',
+      make_webhook_url: '',
+      webhook_health: { status: 'unknown' as const },
+    };
+
+    const next: PartnerSettings = {
+      publishing_method: settings.publishing_method || current.publishing_method || 'manual',
+      make_webhook_url: settings.make_webhook_url ?? current.make_webhook_url,
       webhook_health: {
-        status: settings.make_webhook_url ? 'unknown' : 'unknown',
+        status: (settings.make_webhook_url ?? current.make_webhook_url) ? 'healthy' : 'unknown',
       },
     };
+
+    writePartnerSettings(next);
+    return next;
   },
 
   // ============ Partner Reports ============

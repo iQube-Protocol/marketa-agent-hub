@@ -1,6 +1,7 @@
 /** Partner Settings - Webhook and publishing configuration */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PartnerLayout } from '@/components/layout/PartnerLayout';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { marketaApi } from '@/services/marketaApi';
@@ -11,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Settings, Webhook, CheckCircle2, XCircle, Loader2, ChevronDown, ExternalLink, Info } from 'lucide-react';
+import { Settings, Webhook, CheckCircle2, XCircle, Loader2, ChevronDown, ExternalLink, Info, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function PartnerSettings() {
@@ -24,6 +25,12 @@ export default function PartnerSettings() {
     queryKey: ['partner', 'settings'],
     queryFn: () => marketaApi.getPartnerSettings(),
   });
+
+  useEffect(() => {
+    if (!settings) return;
+    if (settings.make_webhook_url) setWebhookUrl(settings.make_webhook_url);
+    if (settings.publishing_method) setMethod(settings.publishing_method);
+  }, [settings]);
 
   const { data: guide } = useQuery({
     queryKey: ['partner', 'makeGuide'],
@@ -96,6 +103,20 @@ export default function PartnerSettings() {
 
         {method === 'make' && hasFeature('make_enabled') && (
           <>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wand2 className="h-5 w-5" /> Make Setup Wizard
+                </CardTitle>
+                <CardDescription>Guided setup to connect Make and your publishing channels.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link to="/p/settings/make">Open wizard</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

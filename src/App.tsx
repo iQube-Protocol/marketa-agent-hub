@@ -28,6 +28,7 @@ import PartnerCampaignDetail from "./pages/partner/PartnerCampaignDetail";
 import PartnerProposeCampaign from "./pages/partner/PartnerProposeCampaign";
 import PartnerReports from "./pages/partner/PartnerReports";
 import PartnerSettings from "./pages/partner/PartnerSettings";
+import PartnerMakeSetup from "./pages/partner/PartnerMakeSetup";
 import PartnerQubeTalk from "./pages/partner/PartnerQubeTalk";
 
 const queryClient = new QueryClient();
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/p/campaigns/:id" element={<PartnerGuard><PartnerCampaignDetail /></PartnerGuard>} />
               <Route path="/p/reports" element={<PartnerGuard><PartnerReports /></PartnerGuard>} />
               <Route path="/p/settings" element={<PartnerGuard><PartnerSettings /></PartnerGuard>} />
+              <Route path="/p/settings/make" element={<PartnerGuard><PartnerMakeSetup /></PartnerGuard>} />
               <Route path="/p/qubetalk" element={<PartnerGuard><PartnerQubeTalk /></PartnerGuard>} />
 
               {/* Catch-all */}
