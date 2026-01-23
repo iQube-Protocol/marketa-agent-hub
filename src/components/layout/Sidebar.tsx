@@ -78,8 +78,9 @@ export function Sidebar() {
 
   // Filter nav items based on role and feature flags
   const filteredNavItems = navItems.filter((item) => {
-    // Check role access
-    if (item.roles && !item.roles.includes(config.role)) {
+    // Check role access (skip for anonymous role)
+    if (config.role === 'anonymous') return false;
+    if (item.roles && !item.roles.includes(config.role as 'agqAdmin' | 'analyst' | 'partnerAdmin')) {
       return false;
     }
     // Check feature flag

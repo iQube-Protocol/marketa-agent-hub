@@ -1,4 +1,4 @@
-/** API Client for Marketa Console - Mock implementation */
+/** API Client for Marketa Console - Bridge API integration */
 
 import type {
   Partner,
@@ -42,7 +42,8 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const AGENTIQ_API_URL = (import.meta as any).env?.VITE_AGENTIQ_API_URL as string | undefined;
 const PUBLIC_PERSONA_ID = (import.meta as any).env?.VITE_PUBLIC_PERSONA_ID as string | undefined;
-
+const SUPABASE_URL = "https://bsjhfvctmduxhohtllly.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzamhmdmN0bWR1eGhvaHRsbGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1NDgyNTgsImV4cCI6MjA3MzEyNDI1OH0.JVDp4-F6EEXqVQ8sts2Z8KQg168aZ1YdtY53RRM_s7M";
 const PERSONA_STORAGE_KEY = 'marketa_persona_id';
 const TENANT_STORAGE_KEY = 'marketa_tenant_id';
 const MODE_STORAGE_KEY = 'marketa_mode';
@@ -76,10 +77,15 @@ function resolveBridgeContext(): { tenant_id?: string; persona_id?: string; mode
 
 function getBridgeHeaders(): Record<string, string> {
   const resolved = resolveBridgeContext();
+  // Ensure tenant_id defaults to 'metaproof' per platform requirements
+  const tenantId = resolved.tenant_id || tenantContext.tenant_id || 'metaproof';
+  const personaId = resolved.persona_id || tenantContext.persona_id || '';
+  
   return {
-    ...getTenantHeaders(),
-    ...(resolved.tenant_id ? { 'x-tenant-id': resolved.tenant_id } : {}),
-    ...(resolved.persona_id ? { 'x-persona-id': resolved.persona_id } : {}),
+    // Always include x-tenant-id (required by Bridge API)
+    'x-tenant-id': tenantId,
+    // Include persona if available
+    ...(personaId ? { 'x-persona-id': personaId } : {}),
   };
 }
 
@@ -115,7 +121,8 @@ function resolveApiBaseUrl(): string {
     // Prefer same-origin in local dev so Vite's `/api` proxy can handle CORS.
     return '';
   }
-  return AGENTIQ_API_URL || '';
+  // For deployed preview/production, use the platform API URL
+  return AGENTIQ_API_URL || 'https://dev-beta.aigentz.me';
 }
 
 function readHandleCache(): Record<string, { persona_id?: string; tenant_id?: string }> {
@@ -257,25 +264,36 @@ function getFallbackCampaignDetail(campaignId: string): MarketaCampaignDetail {
 }
 
 async function bridgeGet<T>(action: string, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
-  const baseUrl = resolveApiBaseUrl();
-  if (!baseUrl && !AGENTIQ_API_URL && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-    throw new Error('Missing VITE_AGENTIQ_API_URL');
-  }
-
   const params = new URLSearchParams({ action });
   Object.entries(query || {}).forEach(([k, v]) => {
     if (v === undefined) return;
     params.set(k, String(v));
   });
 
-  const res = await fetch(`${baseUrl}/api/marketa/lvb/bridge?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getBridgeHeaders(),
-      ...getDevOverrideHeaders(),
-    },
-  });
+  const bridgePath = `/api/marketa/lvb/bridge?${params.toString()}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...getBridgeHeaders(),
+    ...getDevOverrideHeaders(),
+  };
+
+  let res: Response;
+  
+  if (isLocalhost()) {
+    // Local dev: use Vite proxy (same-origin)
+    res = await fetch(bridgePath, { method: 'GET', headers });
+  } else {
+    // Preview/Production: use Supabase Edge Function proxy
+    const proxyParams = new URLSearchParams({ path: bridgePath });
+    res = await fetch(`${SUPABASE_URL}/functions/v1/marketa-proxy?${proxyParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        ...headers,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+    });
+  }
+
   const json = await res.json();
   if (!res.ok || json?.success === false) {
     throw new Error(json?.error || `Bridge GET failed (${action})`);
@@ -285,28 +303,42 @@ async function bridgeGet<T>(action: string, query?: Record<string, string | numb
 
 function getDevOverrideHeaders(): Record<string, string> {
   const modeQuery = new URLSearchParams(window.location.search).get('mode');
-  if (isLocalhost() || modeQuery === 'admin') {
+  // Always include x-dev-override for development and partner mode
+  if (isLocalhost() || modeQuery === 'admin' || modeQuery === 'partner') {
     return { 'x-dev-override': 'true' };
   }
   return {};
 }
 
 async function adminCampaignsGet<T>(query: Record<string, string | number | boolean | undefined>): Promise<T> {
-  const baseUrl = resolveApiBaseUrl();
   const params = new URLSearchParams();
   Object.entries(query || {}).forEach(([k, v]) => {
     if (v === undefined) return;
     params.set(k, String(v));
   });
 
-  const res = await fetch(`${baseUrl}/api/marketa/admin/campaigns?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getBridgeHeaders(),
-      ...getDevOverrideHeaders(),
-    },
-  });
+  const adminPath = `/api/marketa/admin/campaigns?${params.toString()}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...getBridgeHeaders(),
+    ...getDevOverrideHeaders(),
+  };
+
+  let res: Response;
+
+  if (isLocalhost()) {
+    res = await fetch(adminPath, { method: 'GET', headers });
+  } else {
+    const proxyParams = new URLSearchParams({ path: adminPath });
+    res = await fetch(`${SUPABASE_URL}/functions/v1/marketa-proxy?${proxyParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        ...headers,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+    });
+  }
+
   const json = await res.json();
   if (!res.ok || json?.success === false) {
     throw new Error(json?.error || `Admin campaigns GET failed (${params.get('action') || 'unknown'})`);
@@ -315,20 +347,32 @@ async function adminCampaignsGet<T>(query: Record<string, string | number | bool
 }
 
 async function bridgePost<T>(action: string, body?: Record<string, unknown>): Promise<T> {
-  const baseUrl = resolveApiBaseUrl();
-  if (!baseUrl && !AGENTIQ_API_URL && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-    throw new Error('Missing VITE_AGENTIQ_API_URL');
-  }
+  const bridgePath = `/api/marketa/lvb/bridge?action=${encodeURIComponent(action)}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    ...getBridgeHeaders(),
+    ...getDevOverrideHeaders(),
+  };
 
-  const res = await fetch(`${baseUrl}/api/marketa/lvb/bridge?action=${encodeURIComponent(action)}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getBridgeHeaders(),
-      ...getDevOverrideHeaders(),
-    },
-    body: JSON.stringify(body || {}),
-  });
+  let res: Response;
+
+  if (isLocalhost()) {
+    res = await fetch(bridgePath, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body || {}),
+    });
+  } else {
+    const proxyParams = new URLSearchParams({ path: bridgePath });
+    res = await fetch(`${SUPABASE_URL}/functions/v1/marketa-proxy?${proxyParams.toString()}`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(body || {}),
+    });
+  }
   const json = await res.json();
   if (!res.ok || json?.success === false) {
     throw new Error(json?.error || `Bridge POST failed (${action})`);
