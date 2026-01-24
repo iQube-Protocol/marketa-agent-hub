@@ -177,10 +177,10 @@ function TransferItem({ transfer }: { transfer: ContentTransfer }) {
 
 export function QubeTalkClient() {
   const config = useQubeTalkConfig();
-  const { data: channels, isLoading: channelsLoading } = useChannels();
+  const { data: channels, isLoading: channelsLoading, error: channelsError } = useChannels();
   const { data: transfers } = useTransfers();
   const [activeChannel, setActiveChannel] = useState<string>('marketa-lvb-aigent-z');
-  const { data: messages, isLoading: messagesLoading } = useMessages(activeChannel);
+  const { data: messages, isLoading: messagesLoading, error: messagesError } = useMessages(activeChannel);
   const sendMessage = useSendMessage();
   const sendTransfer = useSendTransfer();
   
@@ -214,6 +214,15 @@ export function QubeTalkClient() {
   const displayEssentialChannels = essentialChannels.length > 0 
     ? essentialChannels 
     : channelList;
+
+  // When channels load, ensure the active channel is valid (auto-select first).
+  useEffect(() => {
+    if (channelList.length === 0) return;
+    const hasActive = channelList.some((c) => (c.id || (c as any).channel_id) === activeChannel);
+    if (hasActive) return;
+    const firstId = channelList[0].id || (channelList[0] as any).channel_id;
+    if (firstId) setActiveChannel(firstId);
+  }, [activeChannel, channelList]);
 
   // Defensive: API sometimes returns non-arrays on error
   const messageList = Array.isArray(messages) ? messages : [];
@@ -337,6 +346,10 @@ export function QubeTalkClient() {
               {channelsLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : channelsError ? (
+                <div className="px-3 py-3 text-xs text-destructive">
+                  Failed to load channels: {(channelsError as any)?.message || 'Unknown error'}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -463,6 +476,12 @@ export function QubeTalkClient() {
           {messagesLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : messagesError ? (
+            <div className="flex flex-col items-center justify-center h-full text-destructive">
+              <MessageSquare className="w-12 h-12 mb-4 opacity-50" />
+              <p>Failed to load messages</p>
+              <p className="text-sm">{(messagesError as any)?.message || 'Unknown error'}</p>
             </div>
           ) : messageList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
