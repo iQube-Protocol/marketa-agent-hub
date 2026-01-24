@@ -18,8 +18,11 @@ type ProxyRequest = {
 
 const BASE_URL = Deno.env.get('QUBETALK_BASE_URL') ?? Deno.env.get('AIGENTZ_BASE_URL') ?? 'https://dev-beta.aigentz.me';
 const API_PREFIX = Deno.env.get('QUBETALK_API_PREFIX') ?? '/api/marketa/qubetalk';
-const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'demo-tenant';
-const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? '5ffe87a0-bd7f-49ba-aa11-d45bc2f6a009';
+// Default to 'metaproof' tenant for this deployment
+const DEFAULT_TENANT_ID = Deno.env.get('QUBETALK_TENANT_ID') ?? 'metaproof';
+// Default persona handle - will be resolved to CRM UUID
+const DEFAULT_PERSONA_HANDLE = Deno.env.get('QUBETALK_PERSONA_HANDLE') ?? 'qriptiq@knyt';
+const DEFAULT_PERSONA_ID = Deno.env.get('QUBETALK_PERSONA_ID') ?? '';
 const IDENTITY_PERSONA_PATH_PREFIX = Deno.env.get('QUBETALK_IDENTITY_PERSONA_PATH_PREFIX') ?? '/api/identity/persona/';
 
 const handleCache = new Map<string, { persona_id?: string; tenant_id?: string }>();
@@ -147,27 +150,42 @@ Deno.serve(async (req) => {
     const inboundPersona = (req.headers.get('x-persona-id') ?? '').trim();
 
     let effectiveTenantId = inboundTenant || DEFAULT_TENANT_ID;
-    let effectivePersonaId = inboundPersona || DEFAULT_PERSONA_ID;
+    // If no persona provided, use default handle (will be resolved below)
+    let effectivePersonaId = inboundPersona || DEFAULT_PERSONA_HANDLE || DEFAULT_PERSONA_ID;
 
-    // If UI sends a persona handle (email), resolve it to canonical IDs before proxying.
-    // This keeps upstream QubeTalk strict on UUID personas while letting clients use handles.
-    if (isPersonaHandle(inboundPersona)) {
+    // Always try to resolve if we have a handle (contains @)
+    if (isPersonaHandle(effectivePersonaId)) {
+      console.log('Resolving persona handle:', effectivePersonaId);
+      
       // Step 0: if CRM has fio_handle mapping, use it directly.
-      const crmFromHandle = await resolveCrmPersonaFromHandle({ handle: inboundPersona, tenantId: effectiveTenantId });
-      if (crmFromHandle.crm_persona_id) effectivePersonaId = crmFromHandle.crm_persona_id;
+      const crmFromHandle = await resolveCrmPersonaFromHandle({ handle: effectivePersonaId, tenantId: effectiveTenantId });
+      if (crmFromHandle.crm_persona_id) {
+        console.log('Resolved CRM persona from handle:', crmFromHandle.crm_persona_id);
+        effectivePersonaId = crmFromHandle.crm_persona_id;
+      }
       if (crmFromHandle.tenant_id) effectiveTenantId = crmFromHandle.tenant_id;
 
-      const resolved = await resolvePersonaHandle(inboundPersona);
-      // Step 1: resolve identity persona UUID from handle
-      if (resolved.persona_id) {
-        // Step 2: map identity persona UUID -> CRM persona UUID used by QubeTalk auth
-        const crm = await resolveCrmPersonaId({ identityPersonaId: resolved.persona_id, tenantId: effectiveTenantId });
-        if (crm.crm_persona_id) effectivePersonaId = crm.crm_persona_id;
-        if (crm.tenant_id) effectiveTenantId = crm.tenant_id;
+      // If not found via fio_handle, try identity API
+      if (isPersonaHandle(effectivePersonaId)) {
+        const resolved = await resolvePersonaHandle(effectivePersonaId);
+        console.log('Identity API resolved:', resolved);
+        
+        // Step 1: resolve identity persona UUID from handle
+        if (resolved.persona_id) {
+          // Step 2: map identity persona UUID -> CRM persona UUID used by QubeTalk auth
+          const crm = await resolveCrmPersonaId({ identityPersonaId: resolved.persona_id, tenantId: effectiveTenantId });
+          if (crm.crm_persona_id) {
+            console.log('CRM persona from identity:', crm.crm_persona_id);
+            effectivePersonaId = crm.crm_persona_id;
+          }
+          if (crm.tenant_id) effectiveTenantId = crm.tenant_id;
+        }
+        // Only override tenant if identity resolver returns a tenant.
+        if (resolved.tenant_id) effectiveTenantId = resolved.tenant_id;
       }
-      // Only override tenant if identity resolver returns a tenant.
-      if (resolved.tenant_id) effectiveTenantId = resolved.tenant_id;
     }
+
+    console.log('Effective IDs:', { effectiveTenantId, effectivePersonaId });
 
     const endpoint = payload?.endpoint;
     if (!endpoint || !['/channels', '/messages', '/transfers'].includes(endpoint)) {

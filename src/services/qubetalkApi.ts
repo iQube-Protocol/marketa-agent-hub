@@ -46,6 +46,8 @@ const isLocalhost = () => ['localhost', '127.0.0.1'].includes(window.location.ho
 
 // Always default to 'metaproof' tenant per platform requirements
 const DEFAULT_TENANT_ID = 'metaproof';
+// Default persona handle for metaproof tenant - proxy will resolve to CRM UUID
+const DEFAULT_PERSONA_HANDLE = 'qriptiq@knyt';
 
 const buildContextHeaders = (): Record<string, string> => {
   const tenantHeaders = getTenantHeaders();
@@ -57,10 +59,11 @@ const buildContextHeaders = (): Record<string, string> => {
     || tenantHeaders['x-tenant-id'] 
     || DEFAULT_TENANT_ID;
   
+  // For persona, we MUST always send a value - default to a known metaproof handle
   const personaId = urlParams.get('persona')
     || window.localStorage.getItem('marketa_persona_id') 
     || tenantHeaders['x-persona-id']
-    || '';
+    || DEFAULT_PERSONA_HANDLE;
   
   const modeParam = urlParams.get('mode') || window.localStorage.getItem('marketa_mode') || '';
   const devOverride = isLocalhost() || modeParam === 'admin' || modeParam === 'partner';
@@ -68,8 +71,8 @@ const buildContextHeaders = (): Record<string, string> => {
   return {
     // x-tenant-id is ALWAYS required (default to metaproof)
     'x-tenant-id': tenantId,
-    // x-persona-id required for auth
-    ...(personaId ? { 'x-persona-id': personaId } : {}),
+    // x-persona-id is ALWAYS required (use handle - proxy resolves to CRM UUID)
+    'x-persona-id': personaId,
     // x-dev-override for local dev and admin/partner modes
     ...(devOverride ? { 'x-dev-override': 'true' } : {}),
   };
