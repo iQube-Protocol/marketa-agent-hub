@@ -60,6 +60,7 @@ const buildContextHeaders = (): Record<string, string> => {
     || DEFAULT_TENANT_ID;
   
   // For persona, we MUST always send a value - default to a known metaproof handle
+  // This is CRITICAL - the proxy requires x-persona-id to resolve to a CRM UUID
   const personaId = urlParams.get('persona')
     || window.localStorage.getItem('marketa_persona_id') 
     || tenantHeaders['x-persona-id']
@@ -68,14 +69,17 @@ const buildContextHeaders = (): Record<string, string> => {
   const modeParam = urlParams.get('mode') || window.localStorage.getItem('marketa_mode') || '';
   const devOverride = isLocalhost() || modeParam === 'admin' || modeParam === 'partner';
 
-  return {
-    // x-tenant-id is ALWAYS required (default to metaproof)
-    'x-tenant-id': tenantId,
-    // x-persona-id is ALWAYS required (use handle - proxy resolves to CRM UUID)
-    'x-persona-id': personaId,
-    // x-dev-override for local dev and admin/partner modes
-    ...(devOverride ? { 'x-dev-override': 'true' } : {}),
+  // ALWAYS return both required headers - never omit x-persona-id
+  const headers: Record<string, string> = {
+    'x-tenant-id': tenantId || DEFAULT_TENANT_ID,
+    'x-persona-id': personaId || DEFAULT_PERSONA_HANDLE,
   };
+  
+  if (devOverride) {
+    headers['x-dev-override'] = 'true';
+  }
+  
+  return headers;
 };
 
 const getTenantId = (): string => {
