@@ -45,6 +45,7 @@ const PUBLIC_PERSONA_ID = (import.meta as any).env?.VITE_PUBLIC_PERSONA_ID as st
 const SUPABASE_URL = "https://bsjhfvctmduxhohtllly.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzamhmdmN0bWR1eGhvaHRsbGx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1NDgyNTgsImV4cCI6MjA3MzEyNDI1OH0.JVDp4-F6EEXqVQ8sts2Z8KQg168aZ1YdtY53RRM_s7M";
 const PERSONA_STORAGE_KEY = 'marketa_persona_id';
+const PERSONA_HANDLE_STORAGE_KEY = 'marketa_persona_handle';
 const TENANT_STORAGE_KEY = 'marketa_tenant_id';
 const MODE_STORAGE_KEY = 'marketa_mode';
 const HANDLE_CACHE_STORAGE_KEY = 'marketa_handle_id_cache_v1';
@@ -57,18 +58,27 @@ function isLocalhost(): boolean {
 function resolveBridgeContext(): { tenant_id?: string; persona_id?: string; mode?: 'admin' | 'partner' | 'analyst' } {
   const urlParams = new URLSearchParams(window.location.search);
   const personaParam = urlParams.get('persona') || undefined;
+  const personaHandleParam = urlParams.get('persona_handle') || undefined;
   const tenantParam = urlParams.get('tenant') || undefined;
   const modeParam = (urlParams.get('mode') as 'admin' | 'partner' | 'analyst' | null) || undefined;
 
   const storedPersona = window.localStorage.getItem(PERSONA_STORAGE_KEY) || undefined;
+  const storedPersonaHandle = window.localStorage.getItem(PERSONA_HANDLE_STORAGE_KEY) || undefined;
   const storedTenant = window.localStorage.getItem(TENANT_STORAGE_KEY) || undefined;
   const storedMode = (window.localStorage.getItem(MODE_STORAGE_KEY) as 'admin' | 'partner' | 'analyst' | null) || undefined;
 
-  const persona_id = personaParam || storedPersona || (PUBLIC_PERSONA_ID || undefined);
+  // Prefer a handle when available so downstream proxies can resolve it to CRM UUIDs.
+  const persona_id =
+    personaParam ||
+    personaHandleParam ||
+    storedPersonaHandle ||
+    storedPersona ||
+    (PUBLIC_PERSONA_ID || undefined);
   const tenant_id = tenantParam || storedTenant || undefined;
   const mode = modeParam || storedMode || undefined;
 
   if (personaParam) window.localStorage.setItem(PERSONA_STORAGE_KEY, personaParam);
+  if (personaHandleParam) window.localStorage.setItem(PERSONA_HANDLE_STORAGE_KEY, personaHandleParam);
   if (tenantParam) window.localStorage.setItem(TENANT_STORAGE_KEY, tenantParam);
   if (modeParam) window.localStorage.setItem(MODE_STORAGE_KEY, modeParam);
 
@@ -175,12 +185,27 @@ export async function resolvePersonaAndTenant(input: string): Promise<{ persona_
   const data = (await resp.json()) as any;
   const persona_id = data?.id || data?.persona_id || data?.persona?.id || data?.persona?.persona_id;
   const tenant_id = data?.tenant_id || data?.persona?.tenant_id || data?.tenant?.tenant_id;
+  // IMPORTANT:
+  // - For QubeTalk, upstream auth expects a CRM persona UUID.
+  // - Our Supabase edge proxy can resolve handles -> CRM UUID safely.
+  // So we persist the *handle* as persona_id for client headers, while caching the resolved UUID for reference.
   const resolved = {
-    ...(persona_id ? { persona_id: String(persona_id) } : {}),
+    persona_id: trimmed,
     ...(tenant_id ? { tenant_id: String(tenant_id) } : {}),
   };
 
+  // Store the handle explicitly so other modules (e.g., QubeTalk) can prefer it.
+  try {
+    window.localStorage.setItem(PERSONA_HANDLE_STORAGE_KEY, trimmed);
+  } catch {
+    // ignore
+  }
+
   writeHandleCache({ ...cache, [trimmed]: resolved });
+  // Cache the resolved identity UUID separately (helps with debugging / future mapping).
+  if (persona_id) {
+    writeHandleCache({ ...readHandleCache(), [`identity:${trimmed}`]: { persona_id: String(persona_id), tenant_id: resolved.tenant_id } });
+  }
   return resolved;
 }
 

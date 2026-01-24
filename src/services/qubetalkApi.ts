@@ -61,7 +61,13 @@ const buildContextHeaders = (): Record<string, string> => {
   
   // For persona, we MUST always send a value - default to a known metaproof handle
   // This is CRITICAL - the proxy requires x-persona-id to resolve to a CRM UUID
+  const personaHandle =
+    urlParams.get('persona_handle') ||
+    window.localStorage.getItem('marketa_persona_handle') ||
+    undefined;
+
   const personaId = urlParams.get('persona')
+    || personaHandle
     || window.localStorage.getItem('marketa_persona_id') 
     || tenantHeaders['x-persona-id']
     || DEFAULT_PERSONA_HANDLE;
