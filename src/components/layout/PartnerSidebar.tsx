@@ -135,7 +135,7 @@ export function PartnerSidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 flex h-screen flex-col bg-sidebar transition-all duration-300',
+        'sticky left-0 top-0 z-40 flex h-screen shrink-0 flex-col bg-sidebar transition-all duration-300',
         collapsed ? 'w-16' : 'w-64'
       )}
     >

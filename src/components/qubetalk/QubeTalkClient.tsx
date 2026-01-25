@@ -319,7 +319,7 @@ export function QubeTalkClient() {
   return (
     <div className="h-full flex rounded-xl overflow-hidden border border-border/50 glass-container">
       {/* Sidebar */}
-      <div className="w-64 border-r border-border/50 flex flex-col bg-card/30 backdrop-blur-sm">
+      <div className="w-64 shrink-0 border-r border-border/50 flex flex-col bg-card/30 backdrop-blur-sm overflow-hidden">
         <div className="p-4 border-b border-border/50">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-semibold flex items-center gap-2">
@@ -335,13 +335,13 @@ export function QubeTalkClient() {
           </p>
         </div>
 
-        <Tabs defaultValue="channels" className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <TabsList className="mx-2 mt-2 mb-0 grid grid-cols-2 shrink-0">
+        <Tabs defaultValue="channels" className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+          <TabsList className="mx-2 mt-2 mb-2 grid grid-cols-2 flex-shrink-0">
             <TabsTrigger value="channels">Channels</TabsTrigger>
             <TabsTrigger value="transfers">Transfers</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="channels" className="flex-1 min-h-0 overflow-hidden mt-2 mx-0 mb-0 data-[state=inactive]:hidden">
+          <TabsContent value="channels" className="flex-1 overflow-auto m-0 p-0" style={{ minHeight: 0 }}>
             <ScrollArea className="h-full px-2 pb-2">
               {channelsLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -412,7 +412,7 @@ export function QubeTalkClient() {
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="transfers" className="flex-1 min-h-0 overflow-hidden mt-2 mx-0 mb-0 data-[state=inactive]:hidden">
+          <TabsContent value="transfers" className="flex-1 overflow-auto m-0 p-0" style={{ minHeight: 0 }}>
             <ScrollArea className="h-full px-2 pb-2">
               {(() => {
                 const transferList = Array.isArray(transfers) ? transfers : [];
