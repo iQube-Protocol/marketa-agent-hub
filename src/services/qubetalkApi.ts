@@ -44,10 +44,10 @@ type ListResponse<TItem, TKey extends string> = {
 
 const isLocalhost = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
-// QubeTalk "system" defaults (used when no explicit tenant/persona context is set).
-// NOTE: The AGQ↔LVB seeded channel history currently lives under demo-tenant.
-const DEFAULT_TENANT_ID = 'demo-tenant';
-const DEFAULT_PERSONA_ID = '5ffe87a0-bd7f-49ba-aa11-d45bc2f6a009';
+// QubeTalk defaults (used only when no explicit tenant/persona context is set).
+// For partner usage, QubeTalk should follow the active Marketa tenant/persona.
+const DEFAULT_TENANT_ID = 'metaproof';
+const DEFAULT_PERSONA_FALLBACK = 'qriptiq@knyt';
 
 const QUBETALK_TENANT_STORAGE_KEY = 'marketa_qubetalk_tenant_id';
 const QUBETALK_PERSONA_STORAGE_KEY = 'marketa_qubetalk_persona_id';
@@ -77,8 +77,22 @@ function ensureDefaultQubeTalkContext() {
   try {
     const existingTenant = window.localStorage.getItem(QUBETALK_TENANT_STORAGE_KEY);
     const existingPersona = window.localStorage.getItem(QUBETALK_PERSONA_STORAGE_KEY);
-    if (!existingTenant) window.localStorage.setItem(QUBETALK_TENANT_STORAGE_KEY, DEFAULT_TENANT_ID);
-    if (!existingPersona) window.localStorage.setItem(QUBETALK_PERSONA_STORAGE_KEY, DEFAULT_PERSONA_ID);
+    if (!existingTenant) {
+      const inferredTenant =
+        new URLSearchParams(window.location.search).get('tenant') ||
+        window.localStorage.getItem('marketa_tenant_id') ||
+        DEFAULT_TENANT_ID;
+      window.localStorage.setItem(QUBETALK_TENANT_STORAGE_KEY, inferredTenant);
+    }
+    if (!existingPersona) {
+      const inferredPersona =
+        new URLSearchParams(window.location.search).get('persona_handle') ||
+        window.localStorage.getItem('marketa_persona_handle') ||
+        new URLSearchParams(window.location.search).get('persona') ||
+        window.localStorage.getItem('marketa_persona_id') ||
+        DEFAULT_PERSONA_FALLBACK;
+      window.localStorage.setItem(QUBETALK_PERSONA_STORAGE_KEY, inferredPersona);
+    }
   } catch {
     // ignore
   }
@@ -100,7 +114,7 @@ const buildContextHeaders = (): Record<string, string> => {
   const personaId =
     ctx.personaId
     || tenantHeaders['x-persona-id']
-    || DEFAULT_PERSONA_ID;
+    || DEFAULT_PERSONA_FALLBACK;
   
   const modeParam = urlParams.get('mode') || window.localStorage.getItem('marketa_mode') || '';
   const devOverride = isLocalhost() || modeParam === 'admin' || modeParam === 'partner';
@@ -108,7 +122,7 @@ const buildContextHeaders = (): Record<string, string> => {
   // ALWAYS return both required headers - never omit x-persona-id
   const headers: Record<string, string> = {
     'x-tenant-id': tenantId || DEFAULT_TENANT_ID,
-    'x-persona-id': personaId || DEFAULT_PERSONA_ID,
+    'x-persona-id': personaId || DEFAULT_PERSONA_FALLBACK,
   };
   
   if (devOverride) {
