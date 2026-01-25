@@ -335,13 +335,13 @@ export function QubeTalkClient() {
           </p>
         </div>
 
-        <Tabs defaultValue="channels" className="flex-1 flex flex-col">
-          <TabsList className="m-2 grid grid-cols-2">
+        <Tabs defaultValue="channels" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <TabsList className="mx-2 mt-2 mb-0 grid grid-cols-2 shrink-0">
             <TabsTrigger value="channels">Channels</TabsTrigger>
             <TabsTrigger value="transfers">Transfers</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="channels" className="flex-1 m-0">
+          <TabsContent value="channels" className="flex-1 min-h-0 overflow-hidden mt-2 mx-0 mb-0 data-[state=inactive]:hidden">
             <ScrollArea className="h-full px-2 pb-2">
               {channelsLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -412,7 +412,7 @@ export function QubeTalkClient() {
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="transfers" className="flex-1 m-0">
+          <TabsContent value="transfers" className="flex-1 min-h-0 overflow-hidden mt-2 mx-0 mb-0 data-[state=inactive]:hidden">
             <ScrollArea className="h-full px-2 pb-2">
               {(() => {
                 const transferList = Array.isArray(transfers) ? transfers : [];
