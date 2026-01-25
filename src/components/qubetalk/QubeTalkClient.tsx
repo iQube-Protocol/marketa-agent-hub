@@ -72,13 +72,13 @@ function MessageBubble({ message }: { message: QubeTalkMessage }) {
         {message.from_agent.name.charAt(0)}
       </div>
       <div className={cn(
-        'max-w-[70%] rounded-2xl px-4 py-2',
+        'max-w-[70%] min-w-0 rounded-2xl px-4 py-2',
         isOutgoing 
           ? 'bg-primary text-primary-foreground rounded-br-md' 
           : 'glass-panel rounded-bl-md'
       )}>
         <p className="text-sm font-medium mb-1">{message.from_agent.name}</p>
-        <p className="text-sm">{message.content.text}</p>
+        <p className="text-sm whitespace-pre-wrap break-words">{message.content.text}</p>
         {message.content.payload && (
           <Badge variant="secondary" className="mt-2">
             {message.content.type === 'iqube_transfer' && <Box className="w-3 h-3 mr-1" />}
@@ -317,7 +317,7 @@ export function QubeTalkClient() {
   };
 
   return (
-    <div className="h-full flex rounded-xl overflow-hidden border border-border/50 glass-container">
+    <div className="h-full w-full min-w-0 flex rounded-xl overflow-hidden border border-border/50 glass-container">
       {/* Sidebar */}
       <div className="w-64 shrink-0 border-r border-border/50 flex flex-col bg-card/30 backdrop-blur-sm overflow-hidden">
         <div className="p-4 border-b border-border/50">
@@ -445,7 +445,7 @@ export function QubeTalkClient() {
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col bg-background/50 backdrop-blur-sm">
+      <div className="flex-1 min-w-0 flex flex-col bg-background/50 backdrop-blur-sm">
         {/* Header */}
         <div className="p-4 border-b border-border/50 flex items-center justify-between">
           <div>
@@ -472,7 +472,7 @@ export function QubeTalkClient() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1 p-4">
+        <ScrollArea className="flex-1 min-w-0 p-4">
           {messagesLoading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />

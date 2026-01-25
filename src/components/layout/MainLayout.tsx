@@ -24,9 +24,9 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   // Default: Admin layout
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex bg-background">
       <Sidebar />
-      <main className="pl-16 transition-all duration-300 lg:pl-64">
+      <main className="flex-1 min-w-0 transition-all duration-300">
         <div className="min-h-screen">{children}</div>
       </main>
     </div>
