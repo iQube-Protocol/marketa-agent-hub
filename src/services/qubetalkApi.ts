@@ -186,6 +186,21 @@ const unwrapList = <TItem, TKey extends string>(
   return [];
 };
 
+function deriveChannelName(input: { id?: string; channel_id?: string; participants?: string[] }): string {
+  const participants = Array.isArray(input.participants) ? input.participants : [];
+  const has = (p: string) => participants.includes(p);
+
+  // Marketa-specific common channels
+  if (has('marketa-agq') && has('marketa-lvb')) return 'Marketa (AGQ) ↔ Marketa (LVB)';
+  if (has('aigent-z') && has('marketa-lvb')) return 'Aigent Z ↔ Marketa (LVB)';
+  if (has('aigent-z') && has('marketa-agq')) return 'Aigent Z ↔ Marketa (AGQ)';
+
+  const id = input.id || input.channel_id;
+  if (id) return id;
+  if (participants.length > 0) return participants.join(', ');
+  return 'Unnamed Channel';
+}
+
 /** QubeTalk API Client - Live via Supabase Edge Function proxy */
 export const qubetalkApi = {
   // Configuration
@@ -278,7 +293,7 @@ export const qubetalkApi = {
     return raw.map((ch) => ({
       ...ch,
       id: ch.id || (ch as any).channel_id || 'unknown',
-      name: ch.name || ch.id || (ch as any).channel_id || 'Unnamed Channel',
+      name: ch.name || deriveChannelName({ id: ch.id, channel_id: (ch as any).channel_id, participants: (ch as any).participants }),
     }));
   },
 
