@@ -44,33 +44,63 @@ type ListResponse<TItem, TKey extends string> = {
 
 const isLocalhost = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
-// Always default to 'metaproof' tenant per platform requirements
-const DEFAULT_TENANT_ID = 'metaproof';
-// Default persona handle for metaproof tenant - proxy will resolve to CRM UUID
-const DEFAULT_PERSONA_HANDLE = 'qriptiq@knyt';
+// QubeTalk "system" defaults (used when no explicit tenant/persona context is set).
+// NOTE: The AGQ↔LVB seeded channel history currently lives under demo-tenant.
+const DEFAULT_TENANT_ID = 'demo-tenant';
+const DEFAULT_PERSONA_ID = '5ffe87a0-bd7f-49ba-aa11-d45bc2f6a009';
+
+const QUBETALK_TENANT_STORAGE_KEY = 'marketa_qubetalk_tenant_id';
+const QUBETALK_PERSONA_STORAGE_KEY = 'marketa_qubetalk_persona_id';
+
+function readQubeTalkContext(): { tenantId?: string; personaId?: string } {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tenantId =
+    urlParams.get('qt_tenant') ||
+    window.localStorage.getItem(QUBETALK_TENANT_STORAGE_KEY) ||
+    urlParams.get('tenant') ||
+    window.localStorage.getItem('marketa_tenant_id') ||
+    undefined;
+
+  const personaId =
+    urlParams.get('qt_persona') ||
+    window.localStorage.getItem(QUBETALK_PERSONA_STORAGE_KEY) ||
+    urlParams.get('persona_handle') ||
+    window.localStorage.getItem('marketa_persona_handle') ||
+    urlParams.get('persona') ||
+    window.localStorage.getItem('marketa_persona_id') ||
+    undefined;
+
+  return { tenantId: tenantId || undefined, personaId: personaId || undefined };
+}
+
+function ensureDefaultQubeTalkContext() {
+  try {
+    const existingTenant = window.localStorage.getItem(QUBETALK_TENANT_STORAGE_KEY);
+    const existingPersona = window.localStorage.getItem(QUBETALK_PERSONA_STORAGE_KEY);
+    if (!existingTenant) window.localStorage.setItem(QUBETALK_TENANT_STORAGE_KEY, DEFAULT_TENANT_ID);
+    if (!existingPersona) window.localStorage.setItem(QUBETALK_PERSONA_STORAGE_KEY, DEFAULT_PERSONA_ID);
+  } catch {
+    // ignore
+  }
+}
 
 const buildContextHeaders = (): Record<string, string> => {
+  ensureDefaultQubeTalkContext();
   const tenantHeaders = getTenantHeaders();
   const urlParams = new URLSearchParams(window.location.search);
   
   // Priority: URL param > localStorage > tenantHeaders > default
-  const tenantId = urlParams.get('tenant') 
-    || window.localStorage.getItem('marketa_tenant_id') 
+  const ctx = readQubeTalkContext();
+  const tenantId = ctx.tenantId
     || tenantHeaders['x-tenant-id'] 
     || DEFAULT_TENANT_ID;
   
   // For persona, we MUST always send a value - default to a known metaproof handle
   // This is CRITICAL - the proxy requires x-persona-id to resolve to a CRM UUID
-  const personaHandle =
-    urlParams.get('persona_handle') ||
-    window.localStorage.getItem('marketa_persona_handle') ||
-    undefined;
-
-  const personaId = urlParams.get('persona')
-    || personaHandle
-    || window.localStorage.getItem('marketa_persona_id') 
+  const personaId =
+    ctx.personaId
     || tenantHeaders['x-persona-id']
-    || DEFAULT_PERSONA_HANDLE;
+    || DEFAULT_PERSONA_ID;
   
   const modeParam = urlParams.get('mode') || window.localStorage.getItem('marketa_mode') || '';
   const devOverride = isLocalhost() || modeParam === 'admin' || modeParam === 'partner';
@@ -78,7 +108,7 @@ const buildContextHeaders = (): Record<string, string> => {
   // ALWAYS return both required headers - never omit x-persona-id
   const headers: Record<string, string> = {
     'x-tenant-id': tenantId || DEFAULT_TENANT_ID,
-    'x-persona-id': personaId || DEFAULT_PERSONA_HANDLE,
+    'x-persona-id': personaId || DEFAULT_PERSONA_ID,
   };
   
   if (devOverride) {
